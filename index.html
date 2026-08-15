@@ -56,7 +56,7 @@
     --safe-b:env(safe-area-inset-bottom,0px);
     --safe-l:env(safe-area-inset-left,0px);
     --safe-r:env(safe-area-inset-right,0px);
-    font-family:'Nunito', -apple-system, Arial, sans-serif;
+    font-family:'Courier New', Courier, monospace;
   }
   *{box-sizing:border-box;}
   html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
@@ -88,29 +88,33 @@
   .topband-wave-top{position:absolute;left:0;right:0;top:-1px;width:100%;height:26px;z-index:2;pointer-events:none;transform:scaleY(-1);}
   .brand{display:flex;align-items:flex-start;gap:12px;}
   .brand .names{display:flex;flex-direction:column;gap:3px;min-width:0;}
-  .brand .mark{font-family:'Poppins',sans-serif;font-weight:800;font-size:24px;letter-spacing:.4px;color:#fff;line-height:1.15;text-transform:uppercase;text-shadow:0 1px 4px rgba(2,5,24,.55);}
-  .brand .sub{font-size:15.5px;font-weight:700;color:#fff;letter-spacing:.4px;text-transform:uppercase;text-shadow:0 1px 4px rgba(2,5,24,.55);}
+  .brand .mark{font-family:'Courier New', Courier, monospace;font-weight:800;font-size:24px;letter-spacing:.4px;color:#fff;line-height:1.15;text-transform:uppercase;text-shadow:0 1px 4px rgba(2,5,24,.55);}
+  .brand .sub{font-family:'Courier New', Courier, monospace;font-size:15.5px;font-weight:700;color:#fff;letter-spacing:.4px;text-transform:uppercase;text-shadow:0 1px 4px rgba(2,5,24,.55);}
   .hamburger-btn{margin-top:4px;}
 
   .home-reset-btn{
     display:flex;align-items:center;justify-content:center;flex-shrink:0;
-    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#DCE3FA;
-    cursor:pointer;width:34px;height:34px;line-height:1;border-radius:50%;
-    transition:background .15s;text-shadow:0 1px 3px rgba(2,5,24,.5);
+    background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);color:#F3F5FF;
+    cursor:pointer;width:36px;height:36px;line-height:1;border-radius:50%;
+    box-shadow:0 2px 8px rgba(6,10,36,.18), inset 0 1px 0 rgba(255,255,255,.25);
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    transition:background .15s,transform .15s;text-shadow:0 1px 3px rgba(2,5,24,.5);
   }
-  .home-reset-btn:hover{background:rgba(255,255,255,.16);color:#fff;}
+  .home-reset-btn:hover{background:rgba(255,255,255,.26);color:#fff;transform:translateY(-1px);}
   .home-reset-btn span{display:none;}
 
-  .hdr-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-top:5px;}
+  .hdr-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;margin-top:5px;}
 
   .notif-wrap{position:relative;}
   .notif-btn{
     position:relative;display:flex;align-items:center;justify-content:center;
-    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#DCE3FA;
-    cursor:pointer;width:34px;height:34px;line-height:1;border-radius:8px;
-    transition:background .15s;
+    background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);color:#F3F5FF;
+    cursor:pointer;width:36px;height:36px;line-height:1;border-radius:50%;
+    box-shadow:0 2px 8px rgba(6,10,36,.18), inset 0 1px 0 rgba(255,255,255,.25);
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    transition:background .15s,transform .15s;
   }
-  .notif-btn:hover{background:rgba(255,255,255,.16);color:#fff;}
+  .notif-btn:hover{background:rgba(255,255,255,.26);color:#fff;transform:translateY(-1px);}
   .notif-badge{
     position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 3px;
     background:var(--del);color:#fff;border-radius:9px;font-size:9.5px;font-weight:800;
@@ -221,6 +225,19 @@
      panes' default order:0) is what pushes it below them regardless of
      source order or viewport width. */
   .toolbar-search{width:100%;order:1;display:flex;}
+  .remarks-count-badge{flex-shrink:0;display:flex;align-items:center;font-size:12.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);border:1px solid var(--line);border-radius:8px;padding:0 12px;margin-left:8px;white-space:nowrap;cursor:pointer;font-family:inherit;}
+  .remarks-count-badge:hover{background:#DCE4FC;}
+  .remarks-count-badge.rc-active{background:var(--accent);color:#fff;border-color:var(--accent-dark);}
+  .rc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px;}
+  .rc-row + .rc-row{border-top:1px solid var(--line);}
+  .rc-row-status{font-size:12.5px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .rc-row-counts{display:flex;gap:6px;flex-shrink:0;}
+  .rc-pill{font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px;cursor:pointer;border:none;font-family:inherit;}
+  .rc-pill-has{background:var(--ok-soft);color:var(--ok);}
+  .rc-pill-has:hover{filter:brightness(.95);}
+  .rc-pill-none{background:var(--od-soft);color:var(--od);}
+  .rc-pill-none:hover{filter:brightness(.95);}
+  .rc-empty{padding:10px;font-size:12.5px;color:var(--muted);}
   .toolbar-search .input{width:100%;max-width:340px;min-width:0;}
   /* On desktop this wrapper is invisible to layout — .left/.right stay
      direct flex children of .toolbar exactly as before. Only the mobile
@@ -270,6 +287,7 @@
   .rec-top{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #EEF0F8;}
   .rec-id{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;}
   .cust-name{font-weight:700;font-size:15px;color:var(--ink);letter-spacing:-.1px;overflow:hidden;text-overflow:ellipsis;}
+  .rec-num{font-weight:700;font-size:15px;color:var(--muted);flex-shrink:0;}
   .cust-sub{color:var(--muted);font-size:10.5px;font-family:'Nunito',sans-serif;letter-spacing:.2px;}
   .rec-right{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:auto;}
 
@@ -285,10 +303,13 @@
   .fact .v{font-size:12px;color:var(--text);font-family:'Nunito',sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .fact .v.money{font-variant-numeric:tabular-nums;text-align:right;}
 
-  .rec-remarks{background:#F6F7FC;border:1px solid #E9EBF7;border-radius:10px;padding:11px 13px;margin-top:2px;}
-  .rec-remarks .rline{display:flex;gap:8px;font-size:12px;line-height:1.5;}
-  .rec-remarks .rline + .rline{margin-top:6px;padding-top:6px;border-top:1px dashed #E2E5F5;}
-  .rec-remarks .rdate{flex-shrink:0;font-size:9.5px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.3px;font-family:'Nunito',sans-serif;white-space:nowrap;}
+  .rec-remarks{background:#F6F7FC;border:1px solid #E9EBF7;border-radius:10px;padding:14px 16px;margin-top:2px;}
+  .rec-remarks .rline{display:flex;gap:10px;font-size:12px;line-height:1.65;}
+  .rec-remarks .rline + .rline{margin-top:10px;padding-top:10px;border-top:1px dashed #E2E5F5;}
+  .rec-remarks .rdate{flex-shrink:0;font-size:9.5px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.3px;font-family:'Nunito',sans-serif;white-space:nowrap;}
+  .rtag{display:inline-block;font-size:8.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:1px 6px;border-radius:20px;margin-left:2px;vertical-align:middle;}
+  .rtag-current{background:var(--ok-soft);color:var(--ok);}
+  .rtag-prev{background:var(--muted-2);color:#fff;}
   .rec-remarks .rtext{color:var(--text);}
   .rec-remarks .rtext.none{font-style:italic;color:#AFB4CF;}
   .rec-remarks .rlabel{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#A5ABC8;margin-bottom:6px;}
@@ -598,26 +619,27 @@
     .field-card{padding:8px 11px;}
   }
 
-  .current-remark{background:#F6F7FD;border:1px solid #E5E8F7;border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.5;}
-  .current-remark .date{font-size:11px;color:var(--accent);font-weight:700;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px;}
+  .current-remark{background:#F6F7FD;border:1px solid #E5E8F7;border-radius:10px;padding:14px 16px;font-size:13px;line-height:1.6;}
+  .current-remark .date{font-size:11px;color:var(--accent);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;}
   textarea{width:100%;border:1px solid #D7DCF0;border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical;min-height:76px;outline:none;transition:border-color .15s, box-shadow .15s;background:#F8F9FD;}
   .history{display:flex;flex-direction:column;gap:10px;max-height:180px;overflow-y:auto;padding-right:4px;}
   .history-item{border-left:2px solid var(--accent);padding-left:12px;font-size:12.5px;color:var(--text);}
-  .history-item .date{font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px;}
+  .history-item .date{font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;}
 
   /* Directly-editable current remark & history (edit modal).
      Kept visually flat/plain (no box, no border) by default so they
      read as plain text and don't invite taps meant for "Add new
      remark" below — the box only appears once you actually hover or
      focus into the field, at which point it's obviously editable. */
-  .current-remark-date{font-size:11px;color:var(--accent);font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;}
+  .current-remark-date{font-size:11px;color:var(--accent);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;}
   .edit-hint{font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted-2);font-size:10px;font-style:italic;}
   .current-remark-edit{
     background:#F6F7FD;border-color:#E5E8F7;min-height:44px;cursor:text;
+    resize:none;overflow:hidden;
   }
   .current-remark-edit:hover{background:#F6F7FD;border-color:#C9D1F2;}
   .current-remark-edit:focus{background:#F6F7FD;border-color:var(--accent);box-shadow:0 0 0 3px rgba(42,61,154,.12);}
-  .history-edit{min-height:90px;max-height:90px;overflow-y:auto;font-family:'Nunito',sans-serif;font-size:12px;line-height:1.6;resize:none;}
+  .history-edit{min-height:44px;overflow:hidden;font-family:'Nunito',sans-serif;font-size:12px;line-height:1.6;resize:none;}
   .history-edit[readonly]{
     background:#FAFBFE;border-color:var(--line);color:var(--muted);cursor:default;
   }
@@ -779,7 +801,7 @@
        block) so they sit up alongside the title row where there's
        open space. */
     .hdr-actions{
-      position:absolute;top:calc(16px + var(--safe-t));right:14px;margin-top:0;
+      position:absolute;top:50%;right:14px;transform:translateY(-50%);margin-top:0;
       gap:6px;z-index:4;
     }
     .home-reset-btn{
@@ -993,12 +1015,12 @@
               </div>
             </div>
             <div class="status-switch" id="remarkSwitch">
-              <button class="btn" id="remarkFilterBtn" onclick="toggleRemarkMenu_(event)" title="Filter by remarks status">All remarks</button>
+              <button class="btn" id="remarkFilterBtn" onclick="toggleRemarkMenu_(event)" title="Filter by remarks status">Remarks</button>
               <div class="status-menu" id="remarkMenu">
                 <div class="status-menu-list">
-                  <button type="button" class="status-option active" data-value=""><span class="so-label">All remarks</span></button>
-                  <button type="button" class="status-option" data-value="pending"><span class="so-label">No remarks yet</span></button>
-                  <button type="button" class="status-option" data-value="done"><span class="so-label">Has remarks</span></button>
+                  <button type="button" class="status-option active" data-value=""><span class="so-label">Remarks</span></button>
+                  <button type="button" class="status-option" data-value="pending"><span class="so-label">No Remarks</span></button>
+                  <button type="button" class="status-option" data-value="done"><span class="so-label">Prev Remarks</span></button>
                 </div>
               </div>
             </div>
@@ -1007,6 +1029,18 @@
         </div>
         <div class="toolbar-search">
           <input class="input" id="searchBox" placeholder="Search customer, model, engine no...">
+          <div class="status-switch" id="remarksCountSwitch">
+            <button type="button" class="remarks-count-badge" id="remarksCountBadge" onclick="toggleRemarksCountMenu_(event)" title="Remarks breakdown by status">0 / 0 with remarks</button>
+            <div class="status-menu" id="remarksCountMenu">
+              <div class="status-menu-actions">
+                <span>By status</span>
+                <div class="status-menu-links">
+                  <button type="button" class="status-menu-link" id="remarksCountResetBtn" data-act="rc-reset">Reset</button>
+                </div>
+              </div>
+              <div class="status-menu-list" id="remarksCountMenuList"></div>
+            </div>
+          </div>
           <button type="button" class="toolbar-toggle" id="toolbarToggleBtn" onclick="toggleToolbarExtra_()" title="Show import/export &amp; filters" aria-expanded="false" aria-controls="toolbarExtra">▾</button>
         </div>
       </div>
@@ -1058,21 +1092,10 @@
       </div>
 
       <div class="section" id="remarksSection">
-        <div class="section-title"><span class="section-badge b5">5</span> Current remark <span class="edit-hint">click to edit</span></div>
-        <div class="current-remark-date" id="mCurrentDate"></div>
-        <textarea id="mCurrentEdit" class="current-remark-edit" placeholder="No remarks recorded yet."></textarea>
-        <div class="draft-status" id="draftStatusCurrent" style="display:none;"></div>
-      </div>
-
-      <div class="section" id="historySection">
-        <div class="section-title"><span class="section-badge b6">6</span> Previous audit remarks <span class="lock-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> locked — auto-logged</span></div>
-        <textarea id="mHistoryEdit" class="history-edit" placeholder="No earlier remarks on file." readonly></textarea>
-      </div>
-
-      <div class="section" style="margin-bottom:0;">
         <div class="section-title">
-          <span class="section-badge b7">7</span>
-          <span id="newRemarkLabel">Add new remark</span>
+          <span class="section-badge b5">5</span>
+          <span id="newRemarkLabel">Current remark</span>
+          <span class="edit-hint">click to edit</span>
           <span class="mini-marker-picker" id="modalMarkerPicker" title="Highlight this customer">
             <button type="button" class="mini-mark-swatch" data-color="green" title="Green"></button>
             <button type="button" class="mini-mark-swatch" data-color="yellow" title="Yellow"></button>
@@ -1081,9 +1104,14 @@
             <button type="button" class="mini-mark-swatch clear" data-color="" title="Clear highlight"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
           </span>
         </div>
-        <input class="input" id="mAuditorName" placeholder="Your name (stamped on this remark)" style="width:100%;margin-bottom:8px;">
-        <textarea id="mNewRemark" placeholder="Write the audit finding for this visit..."></textarea>
-        <div class="draft-status" id="draftStatus" style="display:none;"></div>
+        <div class="current-remark-date" id="mCurrentDate"></div>
+        <textarea id="mCurrentEdit" class="current-remark-edit" placeholder="No remarks recorded yet."></textarea>
+        <div class="draft-status" id="draftStatusCurrent" style="display:none;"></div>
+      </div>
+
+      <div class="section" id="historySection" style="margin-bottom:0;">
+        <div class="section-title"><span class="section-badge b6">6</span> Previous audit remarks <span class="lock-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> locked — auto-logged</span></div>
+        <textarea id="mHistoryEdit" class="history-edit" placeholder="No earlier remarks on file." readonly></textarea>
       </div>
 
     </div>
@@ -1208,23 +1236,6 @@
     try{ localStorage.setItem(API_URL_STORAGE_KEY, url); }catch(e){ /* best-effort */ }
   }
   let API_URL = loadSavedApiUrl_();
-  // -----------------------------------------------------------------------
-
-  // ---- Auditor name (stamped on every remark) ----------------------------
-  // The backend has always supported stamping a remark with "— <name>"
-  // (addRemark / updateCustomerFull / createCustomerFull all take an
-  // auditor param), but the frontend never asked for one. Persisted per
-  // device, same pattern as API_URL, and pre-filled into the modal's
-  // "Your name" field so it only needs to be typed once.
-  const AUDITOR_NAME_KEY = 'aa_auditor_name_v1';
-  function loadAuditorName_(){
-    try{ return (localStorage.getItem(AUDITOR_NAME_KEY) || '').trim(); }
-    catch(e){ return ''; }
-  }
-  function saveAuditorName_(name){
-    try{ localStorage.setItem(AUDITOR_NAME_KEY, (name || '').trim()); }
-    catch(e){ /* best-effort */ }
-  }
   // -----------------------------------------------------------------------
 
 
@@ -2042,11 +2053,11 @@
     toast('Exported ' + customers.length + ' customers.');
   }
 
-  // Prints just the customer-info table (the columns shown in the Sheet:
-  // Customer Name, Release/Rstr Date, Model, Engine No, Due Date, Terms, MA,
-  // Outstanding Balance, Beg Bal) for whichever branch is
-  // currently selected — and only the rows currently visible (i.e.
-  // respects the search box / filters), not the whole dashboard UI.
+  // Prints just the customer-info table (No., Customer Name, Release/Rstr
+  // Date, Model, Engine No, Due Date, Terms, MA, Remarks) for
+  // whichever branch is currently selected — and only the rows currently
+  // visible (i.e. respects the search box / filters), not the whole
+  // dashboard UI.
   // Opens a plain print-friendly window rather than printing the card
   // layout directly, since the cards don't fit a printed page well.
   function printCustomers(){
@@ -2061,36 +2072,61 @@
       { key:'dueDay',             label:'Due Date' },
       { key:'terms',              label:'Terms' },
       { key:'ma',                 label:'MA' },
-      { key:'outstandingBalance', label:'Outstanding Balance' },
-      { key:'remainingBalance',   label:'Beg Bal' },
+      { key:'remarks',            label:'Remarks' },
     ];
 
     const branchName = currentSheet || 'Branch';
+    const totalCols = cols.length + 1; // +1 for the No. column, used by the group-header colspan below
+
+    // Group the rows by their ACTUAL status (not just whichever status
+    // filter happens to be selected) and print a header row above each
+    // group — so status is shown right where it applies, per customer,
+    // instead of one summary line that doesn't say who's under what.
+    // Groups are ordered alphabetically by status name, with rows that
+    // have no status pushed to the end.
+    const groups = new Map(); // status label -> rows[]
+    rows.forEach(c=>{
+      const raw = str_(c.unitAccountStatus).trim();
+      const label = raw || '(No status)';
+      if(!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(c);
+    });
+    const groupLabels = Array.from(groups.keys()).sort((a, b)=>{
+      if(a === '(No status)') return 1;
+      if(b === '(No status)') return -1;
+      return a.localeCompare(b);
+    });
 
     let tableHtml = '<table><thead><tr>' +
-      cols.map(c => '<th>' + escapeHtml(c.label) + '</th>').join('') +
+      '<th class="no-col">No.</th>' +
+      cols.map(c => '<th' + (c.key === 'remarks' ? ' class="remarks-col"' : '') + '>' + escapeHtml(c.label) + '</th>').join('') +
       '</tr></thead><tbody>';
 
-    rows.forEach(c=>{
-      tableHtml += '<tr>' + cols.map(col=>{
-        let v = c[col.key];
-        const isMoney = (col.key === 'ma' || col.key === 'outstandingBalance' || col.key === 'remainingBalance');
-        if(isMoney){
-          v = (v !== '' && v != null) ? '₱' + fmtMoney(v) : '—';
-        } else {
-          v = v || '—';
-        }
-        return '<td' + (isMoney ? ' class="money"' : '') + '>' + escapeHtml(String(v)) + '</td>';
-      }).join('') + '</tr>';
+    let rowNum = 0;
+    groupLabels.forEach(label=>{
+      tableHtml += '<tr class="group-row"><td class="group-header" colspan="' + totalCols + '">' + escapeHtml(label) + '</td></tr>';
+      groups.get(label).forEach(c=>{
+        rowNum++;
+        tableHtml += '<tr><td class="no-col">' + rowNum + '</td>' + cols.map(col=>{
+          let v = c[col.key];
+          const isMoney = (col.key === 'ma');
+          const isRemarks = col.key === 'remarks';
+          if(isMoney){
+            v = (v !== '' && v != null) ? '₱' + fmtMoney(v) : '—';
+          } else if(isRemarks){
+            v = (v && str_(v).toUpperCase() !== 'NO REMARKS') ? v : '';
+          } else {
+            v = v || '—';
+          }
+          const cls = isMoney ? ' class="money"' : (isRemarks ? ' class="remarks-col"' : '');
+          return '<td' + cls + '>' + escapeHtml(String(v)) + '</td>';
+        }).join('') + '</tr>';
+      });
     });
     tableHtml += '</tbody></table>';
 
     const win = window.open('', '_blank');
     if(!win){ toast('Please allow pop-ups to print.'); return; }
-
-    const now = new Date();
-    const stamp = now.toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' }) +
-      ' at ' + now.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
 
     win.document.write(`<!DOCTYPE html>
 <html>
@@ -2099,39 +2135,31 @@
 <title>${escapeHtml(branchName)} — Customer List</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
   * { box-sizing: border-box; }
-  body { font-family: 'Nunito', Arial, sans-serif; margin: 0; color: #1a1a1a; }
-  .report-header { background: #1E3A8A; color: #fff; padding: 22px 28px 18px; }
-  .report-header h1 { font-size: 19px; margin: 0 0 3px; font-weight: 700; letter-spacing: .2px; }
-  .report-header .subtitle { font-size: 12px; color: #C7D2F5; }
-  .gold-rule { height: 3px; background: #E0B658; }
-  .report-body { padding: 20px 28px 28px; }
-  table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
-  th, td { border: 1px solid #ddd; padding: 7px 9px; text-align: left; white-space: nowrap; }
-  th { background: #1E3A8A; color: #fff; font-weight: 600; text-transform: uppercase; font-size: 9.5px; letter-spacing: .4px; }
+  @page { margin: 14mm 10mm; }
+  body { font-family: 'Nunito', Arial, sans-serif; margin: 0; color: #000; }
+  .report-body { padding: 0; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 11px; margin-top: 0; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr { page-break-inside: avoid; break-inside: avoid; }
+  th, td { border: 1px solid #000; padding: 7px 9px; text-align: left; white-space: nowrap; color: #000; }
+  th { background: #fff; color: #000; font-weight: 600; text-transform: uppercase; font-size: 9.5px; letter-spacing: .4px; }
   td.money, th:last-child { text-align: right; }
+  th.no-col, td.no-col { text-align: center; width: 32px; }
+  th.remarks-col, td.remarks-col { white-space: normal; text-align: left; min-width: 220px; padding: 10px 12px; line-height: 1.5; font-weight: 400; }
   tbody tr:nth-child(even) { background: #F4F6FC; }
-  .report-footer { margin-top: 18px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 10.5px; color: #666; display: flex; justify-content: space-between; }
+  .group-row td.group-header { background: #EEF1FB; color: #000; font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .3px; padding: 6px 9px; text-align: left; }
   @media print {
     body { margin: 0; }
-    .report-header { padding: 14mm 10mm 10px; }
-    .report-body { padding: 10px 10mm 10mm; }
     button { display: none; }
   }
 </style>
 </head>
 <body>
-  <div class="report-header">
-    <h1>${escapeHtml(branchName)} — Customer List</h1>
-    <div class="subtitle">Audited Accounts — Subsidiary Ledger</div>
-  </div>
-  <div class="gold-rule"></div>
   <div class="report-body">
     ${tableHtml}
-    <div class="report-footer">
-      <span>Branch: ${escapeHtml(branchName)}</span>
-      <span>Generated ${escapeHtml(stamp)} · ${rows.length} record${rows.length === 1 ? '' : 's'}</span>
-    </div>
   </div>
 </body>
 </html>`);
@@ -4463,9 +4491,9 @@
   function updateRemarkFilterBtn_(){
     const btn = document.getElementById('remarkFilterBtn');
     if(!btn) return;
-    btn.textContent = remarkFilterValue_ === 'pending' ? 'No remarks yet'
-      : remarkFilterValue_ === 'done' ? 'Has remarks'
-      : 'All remarks';
+    btn.textContent = remarkFilterValue_ === 'pending' ? 'No Remarks'
+      : remarkFilterValue_ === 'done' ? 'Prev Remarks'
+      : 'Remarks';
   }
   function setRemarkFilter_(value){
     remarkFilterValue_ = value || '';
@@ -4549,7 +4577,7 @@
   // memory, no behavior change — output is identical either way.
   const rowHtmlCache = new Map();
 
-  function rowSignature_(c, isConflict, mark){
+  function rowSignature_(c, isConflict, mark, idx){
     // Drafts (unsaved current-remark / new-remark text sitting in
     // localStorage) are folded into the signature too, so a row whose
     // only change is a draft being saved/discarded/edited still gets
@@ -4563,7 +4591,7 @@
       c.unitStatus + '\u0001' + c.paymentMode + '\u0001' + c.dateOfAudit + '\u0001' +
       c.remarks + '\u0001' + c.oldRemarks + '\u0001' +
       (c._pending ? 1 : 0) + '\u0001' + (isConflict ? 1 : 0) + '\u0001' + (mark || '') + '\u0001' +
-      draftFingerprint;
+      draftFingerprint + '\u0001' + idx;
   }
 
   // Cheap "has this row's draft state changed" fingerprint for the cache
@@ -4575,6 +4603,115 @@
     const nw = loadDraft_(row, 'new');
     return (cur ? cur.savedAt : '0') + ':' + (nw ? nw.savedAt : '0');
   }
+
+  // Counts accounts that currently have a real (non-"NO REMARKS") current
+  // remark, out of the accounts matching the selected status filter — shown
+  // as a small badge next to the search box. Deliberately ignores the
+  // search box text and the separate Remarks dropdown filter, so it always
+  // reads as "of everyone in this status, how many are already remarked",
+  // not "of what's currently visible". Also builds the dropdown's
+  // per-status breakdown (one row per status currently in scope, each with
+  // a "has remarks" / "no remarks" count you can click to jump straight to
+  // that slice).
+  function updateRemarksCountBadge_(){
+    const badge = document.getElementById('remarksCountBadge');
+    if(!badge) return;
+
+    // Per-status tally, in scope order: if one or more statuses are
+    // selected in the main Status filter, only those are broken out;
+    // otherwise every distinct status (plus a "(No status)" bucket) seen
+    // on this branch is shown.
+    const tally = new Map(); // key -> { label, total, withRemarks }
+    const order = [];
+    function bucketFor(key, label){
+      let b = tally.get(key);
+      if(!b){ b = { label, total: 0, withRemarks: 0 }; tally.set(key, b); order.push(key); }
+      return b;
+    }
+
+    let total = 0, withRemarks = 0;
+    for(let i = 0; i < customers.length; i++){
+      const c = customers[i];
+      if(c._pendingDelete) continue;
+      const cs = str_(c.unitAccountStatus).trim();
+      const key = cs ? cs : STATUS_BLANK_VALUE;
+      if(selectedStatuses_.size && !selectedStatuses_.has(key)) continue;
+
+      total++;
+      const hasRemark = c.remarks && str_(c.remarks).toUpperCase() !== 'NO REMARKS';
+      if(hasRemark) withRemarks++;
+
+      const b = bucketFor(key, cs ? cs : '(No status)');
+      b.total++;
+      if(hasRemark) b.withRemarks++;
+    }
+
+    badge.textContent = withRemarks + ' / ' + total + ' with remarks';
+    badge.classList.toggle('rc-active', selectedStatuses_.size > 0 || !!remarkFilterValue_);
+
+    order.sort((a, b) => tally.get(a).label.localeCompare(tally.get(b).label));
+    const listEl = document.getElementById('remarksCountMenuList');
+    if(listEl){
+      if(!order.length){
+        listEl.innerHTML = '<div class="rc-empty">No accounts yet</div>';
+      } else {
+        listEl.innerHTML = order.map(key=>{
+          const b = tally.get(key);
+          const noRemarks = b.total - b.withRemarks;
+          return `<div class="rc-row">` +
+            `<span class="rc-row-status">${escapeHtml(b.label)}</span>` +
+            `<span class="rc-row-counts">` +
+              `<button type="button" class="rc-pill rc-pill-has" data-status="${escapeHtml(key)}" data-remark="done">${b.withRemarks} with</button>` +
+              `<button type="button" class="rc-pill rc-pill-none" data-status="${escapeHtml(key)}" data-remark="pending">${noRemarks} none</button>` +
+            `</span></div>`;
+        }).join('');
+      }
+    }
+  }
+
+  // Clicking a status's "with"/"none" pill in the breakdown menu jumps the
+  // main Status filter to just that one status and the Remarks filter to
+  // the matching side, then re-renders so the list itself shows that
+  // exact slice — not just the count.
+  document.getElementById('remarksCountMenuList').addEventListener('click', (e)=>{
+    const pill = e.target.closest('.rc-pill');
+    if(!pill) return;
+    const status = pill.dataset.status;
+    selectedStatuses_.clear();
+    selectedStatuses_.add(status);
+    pendingStatuses_ = new Set(selectedStatuses_);
+    syncStatusCheckboxes_();
+    updateStatusFilterBtn_();
+    setRemarkFilter_(pill.dataset.remark);
+    closeRemarksCountMenu_();
+  });
+
+  // "Reset" clears both the Status filter and the Remarks filter back to
+  // their defaults (All status / All remarks) — the way back after
+  // clicking one of the "X with" / "Y none" pills above narrowed the view
+  // down to a single status + remark state.
+  document.getElementById('remarksCountResetBtn').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    selectedStatuses_.clear();
+    pendingStatuses_ = new Set();
+    syncStatusCheckboxes_();
+    updateStatusFilterBtn_();
+    setRemarkFilter_('');
+    closeRemarksCountMenu_();
+  });
+
+  function toggleRemarksCountMenu_(e){
+    if(e) e.stopPropagation();
+    const menu = document.getElementById('remarksCountMenu');
+    if(menu.classList.contains('open')) closeRemarksCountMenu_();
+    else openPositionedMenu(menu, document.getElementById('remarksCountBadge'));
+  }
+  function closeRemarksCountMenu_(){
+    closePositionedMenu(document.getElementById('remarksCountMenu'));
+  }
+  document.addEventListener('click', (e)=>{
+    if(!e.target.closest('#remarksCountSwitch')) closeRemarksCountMenu_();
+  });
 
   function getFilteredCustomers(){
     const q = document.getElementById('searchBox').value.trim().toLowerCase();
@@ -4604,8 +4741,9 @@
         if(!selectedStatuses_.has(key)) return false;
       }
       const hasRemark = c.remarks && str_(c.remarks).toUpperCase() !== 'NO REMARKS';
+      const hasOldRemark = !!str_(c.oldRemarks).trim();
       if(remarkF === 'pending' && hasRemark) return false;
-      if(remarkF === 'done' && !hasRemark) return false;
+      if(remarkF === 'done' && !hasOldRemark) return false;
       return true;
     });
   }
@@ -4671,7 +4809,7 @@
       <div class="fact-grid">${factsHtml}</div>
       <div class="rec-remarks">
         <div class="rlabel">Remarks</div>
-        <div class="rline"><div class="rdate">Undated</div><div class="rtext none">No remarks yet</div></div>
+        <div class="rline"><div class="rdate"><span class="rtag rtag-current">Current</span></div><div class="rtext none">No remarks yet</div></div>
       </div>
       <div class="rec-sample-cta">
         <p>This branch doesn\u2019t have any customers yet — the card above shows every field you\u2019ll see once data\u2019s in, all blank for now.</p>
@@ -4692,6 +4830,7 @@
     const conflictRows = new Set(outbox.filter(o => o.status === 'conflict' || o.status === 'error').map(o => o.row));
 
     const filtered = getFilteredCustomers();
+    updateRemarksCountBadge_();
 
     // A branch with zero customers (freshly created, nothing imported or
     // added yet) is a different situation from a search/filter just
@@ -4715,7 +4854,7 @@
       const c = filtered[i];
       const isConflict = conflictRows.has(c.row);
       const mark = c.marker || '';
-      const sig = rowSignature_(c, isConflict, mark);
+      const sig = rowSignature_(c, isConflict, mark, i);
 
       const cached = rowHtmlCache.get(c.row);
       if(cached && cached.sig === sig){
@@ -4768,10 +4907,10 @@
       }
 
       remarksHtml +=
-        `<div class="rline"><div class="rdate">${escapeHtml(c.dateOfAudit || 'Undated')}</div>` +
+        `<div class="rline"><div class="rdate">${escapeHtml(c.dateOfAudit || '')} <span class="rtag rtag-current">Current</span></div>` +
         `<div class="rtext ${hasRemark ? '' : 'none'}">${hasRemark ? escapeHtml(c.remarks) : 'No remarks yet'}</div></div>`;
       for(let j = 0; j < hist.length; j++){
-        remarksHtml += `<div class="rline"><div class="rdate">${escapeHtml(hist[j].date || 'Undated')}</div><div class="rtext">${escapeHtml(hist[j].remark)}</div></div>`;
+        remarksHtml += `<div class="rline"><div class="rdate">${escapeHtml(hist[j].date || '')} <span class="rtag rtag-prev">Previous</span></div><div class="rtext">${escapeHtml(hist[j].remark)}</div></div>`;
       }
 
       const pendingTag = isConflict
@@ -4787,6 +4926,7 @@
             <input type="checkbox" class="row-check-box" data-row="${c.row}">
           </label>
           <div class="rec-id">
+            <span class="rec-num">${i + 1}.</span>
             <div class="cust-name">${escapeHtml(c.customer)}</div>
             <button class="copy-name-btn" title="Copy customer name" data-act="copy-name" data-name="${escapeHtml(c.customer)}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -5074,15 +5214,17 @@
     try{ localStorage.removeItem(draftKey_(row, field)); }catch(err){ /* noop */ }
   }
 
-  // Clears every draft field (new + current) for a row in one call —
-  // used after a successful save/delete, when nothing should be left
-  // pending for that customer any more.
+  // Clears every draft field for a row in one call — used after a
+  // successful save/delete, when nothing should be left pending for
+  // that customer any more. Also clears the old 'new'-field draft key
+  // in case a leftover one exists from before the Add-new-remark box
+  // was removed.
   function clearAllDrafts_(row){
     clearDraft_(row, 'new');
     clearDraft_(row, 'current');
   }
 
-  const DRAFT_STATUS_EL = { new: 'draftStatus', current: 'draftStatusCurrent' };
+  const DRAFT_STATUS_EL = { current: 'draftStatusCurrent' };
 
   function updateDraftStatus_(field){
     const elId = DRAFT_STATUS_EL[field];
@@ -5099,29 +5241,17 @@
 
   function discardDraft(field){
     clearDraft_(activeRow, field);
-    if(field === 'current'){
-      document.getElementById('mCurrentEdit').value = editorOriginalCurrent;
-    } else {
-      document.getElementById('mNewRemark').value = '';
-    }
+    document.getElementById('mCurrentEdit').value = editorOriginalCurrent;
+    autoResizeRemark_();
     updateDraftStatus_(field);
   }
 
-  // Drafts auto-save locally 0.5 second after typing stops. For the
-  // Current remark box specifically, that same 0.5s pause also triggers
-  // a REAL save — the same request Save changes would send — so an
-  // existing customer's current remark never depends on remembering to
-  // click the button at all. (Handled by autoSaveCurrentRemark_ below.)
+  // Drafts auto-save locally 0.5 second after typing stops. That same
+  // 0.5s pause also triggers a REAL save — the same request Save
+  // changes would send — so an existing customer's current remark
+  // never depends on remembering to click the button at all. (Handled
+  // by autoSaveCurrentRemark_ below.)
   const DRAFT_SAVE_DELAY_MS = 500;
-
-  let draftSaveDebounce;
-  document.getElementById('mNewRemark').addEventListener('input', function(){
-    clearTimeout(draftSaveDebounce);
-    draftSaveDebounce = setTimeout(()=>{
-      saveDraft_(activeRow, 'new', document.getElementById('mNewRemark').value);
-      updateDraftStatus_('new');
-    }, DRAFT_SAVE_DELAY_MS);
-  });
 
   // Same auto-draft behavior for the "current remark" box — if it's
   // edited and the person never hits Save (offline, forgot, tab closed),
@@ -5134,8 +5264,25 @@
   // right after, same as clicking "Save changes" would do for this
   // field. If offline, that real save just queues to the outbox and
   // syncs automatically once back online, same as any manual save.
+  // Auto-grow a remark box to fit whatever's typed/loaded into it —
+  // short remark stays compact, long remark expands the box itself,
+  // so there's never a manual drag-to-resize or an inner scrollbar.
+  // Height is reset to 'auto' first so shrinking is picked up too,
+  // not just growth.
+  function autoResizeEl_(el){
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+  function autoResizeRemark_(){
+    autoResizeEl_(document.getElementById('mCurrentEdit'));
+  }
+  function autoResizeHistory_(){
+    autoResizeEl_(document.getElementById('mHistoryEdit'));
+  }
+
   let draftSaveDebounceCurrent;
   document.getElementById('mCurrentEdit').addEventListener('input', function(){
+    autoResizeRemark_();
     clearTimeout(draftSaveDebounceCurrent);
     draftSaveDebounceCurrent = setTimeout(()=>{
       const val = document.getElementById('mCurrentEdit').value;
@@ -5192,7 +5339,9 @@
         clearDraft_(row, 'current');
         updateDraftStatus_('current');
       }
-      if(!(result && result.queued)){
+      if(result && result.queued){
+        toast('Offline — remark saved on this device, will sync automatically once you\'re back online.');
+      } else {
         toast('Current remark auto-saved.');
       }
     }catch(err){
@@ -5229,14 +5378,14 @@
 
     document.getElementById('remarksSection').style.display = 'block';
     document.getElementById('historySection').style.display = 'block';
-    document.getElementById('newRemarkLabel').textContent = 'Add new remark';
+    document.getElementById('newRemarkLabel').textContent = 'Current remark';
     document.getElementById('saveBtn').textContent = 'Save changes';
     document.getElementById('deleteBtnWrap').style.display = 'flex';
 
     buildFieldGrid(c);
 
     const hasRemark = c.remarks && str_(c.remarks).toUpperCase() !== 'NO REMARKS';
-    document.getElementById('mCurrentDate').textContent = hasRemark ? (c.dateOfAudit || 'Undated') : '';
+    document.getElementById('mCurrentDate').textContent = hasRemark ? (c.dateOfAudit || '') : '';
     editorOriginalCurrent = hasRemark ? str_(c.remarks) : '';
 
     const currentDraft = loadDraft_(row, 'current');
@@ -5245,14 +5394,15 @@
     editorOriginalHistory = str_(c.oldRemarks);
     document.getElementById('mHistoryEdit').value = editorOriginalHistory;
 
-    const draft = loadDraft_(row, 'new');
-    document.getElementById('mNewRemark').value = draft ? draft.text : '';
-    document.getElementById('mAuditorName').value = loadAuditorName_();
-    updateDraftStatus_('new');
     updateDraftStatus_('current');
     setModalMarkerPickerColor_(c.marker || '');
     document.getElementById('overlay').classList.add('open');
     lockBodyScroll();
+    // The box is inside a display:none overlay until the line above —
+    // scrollHeight reads 0 there, so the auto-size measurement has to
+    // happen on the next frame, once the overlay is actually laid out.
+    requestAnimationFrame(autoResizeRemark_);
+    requestAnimationFrame(autoResizeHistory_);
   }
 
   // ---- Modal: create new --------------------------------------------------
@@ -5261,7 +5411,7 @@
     modalMode = 'create';
     activeRow = null;
 
-    document.getElementById('remarksSection').style.display = 'none';
+    document.getElementById('remarksSection').style.display = 'block';
     document.getElementById('historySection').style.display = 'none';
     document.getElementById('newRemarkLabel').textContent = 'Initial remark (optional)';
     document.getElementById('saveBtn').textContent = 'Create customer';
@@ -5271,16 +5421,14 @@
     editorOriginalCurrent = '';
     editorOriginalHistory = '';
     document.getElementById('mCurrentDate').textContent = '';
-    document.getElementById('mCurrentEdit').value = '';
+    const draft = loadDraft_(null, 'current');
+    document.getElementById('mCurrentEdit').value = draft ? draft.text : '';
     document.getElementById('mHistoryEdit').value = '';
-    document.getElementById('draftStatusCurrent').style.display = 'none';
-    const draft = loadDraft_(null, 'new');
-    document.getElementById('mNewRemark').value = draft ? draft.text : '';
-    document.getElementById('mAuditorName').value = loadAuditorName_();
-    updateDraftStatus_('new');
+    updateDraftStatus_('current');
     setModalMarkerPickerColor_('');
     document.getElementById('overlay').classList.add('open');
     lockBodyScroll();
+    requestAnimationFrame(autoResizeRemark_);
   }
 
   function closeModal(){
@@ -5305,19 +5453,16 @@
     const originalLabel = btn.textContent;
     btn.textContent = modalMode === 'create' ? 'Creating…' : 'Saving…';
 
-    const remark = document.getElementById('mNewRemark').value.trim();
-    const auditor = document.getElementById('mAuditorName').value.trim();
-    saveAuditorName_(auditor);
-
     try{
       if(modalMode === 'create'){
+        const initialRemark = document.getElementById('mCurrentEdit').value.trim();
         const item = {
           id: genId_(),
           kind: 'create',
           tempRow: -Date.now(),
           fields,
-          remark: remark || null,
-          auditor: auditor || null,
+          remark: initialRemark || null,
+          auditor: null,
           status: 'pending'
         };
         const result = await queueOrSend_(item);
@@ -5326,11 +5471,10 @@
       } else {
         const c = customers.find(x => x.row === activeRow);
 
-        // Direct edits to the current remark / history textareas, only
-        // sent if they actually differ from what was painted in when the
-        // modal opened — leaving these unset (undefined) means sendOne_
-        // skips the corresponding editCurrentRemark/editRemarkHistory
-        // call entirely for an unrelated field-only or new-remark-only save.
+        // Direct edit to the current remark textarea, only sent if it
+        // actually differs from what was painted in when the modal
+        // opened — leaving this unset (undefined) means sendOne_ skips
+        // the editCurrentRemark call entirely for a field-only save.
         const currentEditVal = document.getElementById('mCurrentEdit').value.trim();
         const historyEditVal = document.getElementById('mHistoryEdit').value.trim();
         const currentEdit = currentEditVal !== editorOriginalCurrent.trim() ? currentEditVal : undefined;
@@ -5341,8 +5485,8 @@
           kind: 'update',
           row: activeRow,
           fields,
-          remark: remark || null,
-          auditor: auditor || null,
+          remark: null,
+          auditor: null,
           currentEdit,
           historyEdit,
           status: 'pending',
