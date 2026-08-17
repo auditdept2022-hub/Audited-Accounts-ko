@@ -79,18 +79,33 @@
   .topband{
     position:sticky;top:0;z-index:40;
     background:radial-gradient(ellipse 60% 100% at 50% 50%, rgba(10,16,40,.42) 0%, rgba(10,16,40,0) 70%), linear-gradient(100deg, #24409B 0%, #1E3480 45%, #172868 100%);
-    color:#EDEFF9;padding:calc(22px + var(--safe-t)) 32px 34px;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;
+    color:#EDEFF9;padding:calc(22px + var(--safe-t)) 32px 24px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 20px;
     box-shadow:0 2px 10px rgba(10,23,72,.25);
     overflow:hidden;
   }
   .topband > *{position:relative;z-index:3;}
   .topband-wave{position:absolute;left:0;right:0;bottom:-1px;width:100%;height:26px;z-index:2;pointer-events:none;}
   .topband-wave-top{position:absolute;left:0;right:0;top:-1px;width:100%;height:26px;z-index:2;pointer-events:none;transform:scaleY(-1);}
-  .brand{display:flex;align-items:flex-start;gap:12px;}
-  .brand .names{display:flex;flex-direction:column;gap:3px;min-width:0;}
+  /* Row 1: hamburger + title on the left, bell/home on the right — a
+     single tidy line on every screen size. The branch/online and
+     sync/pending info used to live stacked *inside* this same row
+     (as .brand .names), which is what caused it to collide with the
+     action icons once the header wrapped on narrow phones: the icons
+     were pinned by absolute position to the vertical center of the
+     whole (now taller) header and ended up floating on top of that
+     text. Pulling status text out into its own always-full-width row
+     below (.hdr-status-rows) means row 1 stays exactly one line tall,
+     the icons never need absolute positioning, and there's nothing
+     left for them to overlap. */
+  .brand{display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 auto;}
   .brand .mark{font-family:'Courier New', Courier, monospace;font-weight:800;font-size:24px;letter-spacing:.4px;color:#fff;line-height:1.15;text-transform:uppercase;text-shadow:0 1px 4px rgba(2,5,24,.55);}
-  .brand .sub{font-family:'Courier New', Courier, monospace;font-size:15.5px;font-weight:700;color:#fff;letter-spacing:.4px;text-transform:uppercase;text-shadow:0 1px 4px rgba(2,5,24,.55);}
-  .hamburger-btn{margin-top:4px;}
+  .hamburger-btn{flex-shrink:0;}
+  /* Row 2 (full width, always wraps onto its own line): branch/online
+     status + sync/pending status, stacked. Separated from row 1 by a
+     faint divider so the two kinds of information read as distinct
+     groups instead of one crowded block. */
+  .hdr-status-rows{display:flex;flex-direction:column;gap:6px;flex-basis:100%;order:3;padding-top:12px;margin-top:2px;border-top:1px solid rgba(255,255,255,.14);}
+  .hdr-status-rows .sub{font-family:'Courier New', Courier, monospace;font-size:15.5px;font-weight:700;color:#fff;letter-spacing:.4px;text-transform:uppercase;text-shadow:0 1px 4px rgba(2,5,24,.55);}
 
   .home-reset-btn{
     display:flex;align-items:center;justify-content:center;flex-shrink:0;
@@ -103,7 +118,7 @@
   .home-reset-btn:hover{background:rgba(255,255,255,.26);color:#fff;transform:translateY(-1px);}
   .home-reset-btn span{display:none;}
 
-  .hdr-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;margin-top:5px;}
+  .hdr-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;order:2;}
 
   .notif-wrap{position:relative;}
   .notif-btn{
@@ -767,7 +782,7 @@
 
   /* ---------- Responsive: tablet ---------- */
   @media(max-width:900px){
-    .topband{flex-wrap:wrap;row-gap:10px;padding:calc(18px + var(--safe-t)) 20px 20px;}
+    .topband{padding:calc(18px + var(--safe-t)) 20px 18px;}
     .main{padding:22px 20px 48px;}
     .field-grid{grid-template-columns:1fr;}
     .fact-grid{grid-template-columns:repeat(3,1fr);}
@@ -779,45 +794,37 @@
     .pagehead{flex-direction:column;align-items:flex-start;gap:6px;}
     .pagehead h1{font-size:21px;}
 
-    /* ---- Mobile header: redesigned as a compact two-row app bar.
-       Row 1 is just hamburger + brand + refresh, always a single
-       tidy line; the sync/status pill drops to its own full-width
-       row underneath instead of competing for space and wrapping
-       awkwardly. This block only fires under 640px — the desktop
-       .topband/.brand rules above are untouched. ---- */
+    /* ---- Mobile header: a clean two-row app bar.
+       Row 1 is hamburger + title + bell + home, all inline on one
+       line (title truncates with an ellipsis if the branch name is
+       long) — nothing here is absolutely positioned any more, so
+       there's nothing for it to drift over. Row 2 is the branch/
+       online status and the sync/pending status, each its own full-
+       width line below a thin divider, with enough font size and
+       spacing to actually read comfortably. This block only fires
+       under 640px — the desktop rules above are untouched. ---- */
     .topband{
-      flex-wrap:wrap;
-      padding:calc(16px + var(--safe-t)) 14px 18px;
-      gap:10px;
-      /* No background override here — the same flat navy gradient
-         defined on .topband above carries over to mobile so the
-         header looks identical to desktop, just recomposed for the
-         narrower two-row layout. */
+      padding:calc(14px + var(--safe-t)) 14px 16px;
+      gap:10px 12px;
     }
-    .brand{justify-content:flex-start;gap:10px;min-width:0;flex-basis:100%;}
-    .brand .names{min-width:0;}
-    .hamburger-btn{flex-shrink:0;}
-    .brand .mark{font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .sub-row{font-size:9.5px;gap:5px;row-gap:3px;}
-    .brand .sub{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px;}
-    .hdr-status{font-size:9.5px;}
-    .sub-row-sync .hdr-status{font-size:9px;white-space:normal;overflow-wrap:anywhere;}
-    .import-status{display:none;}
-    #pendingWrap, #pendingWrap button{font-size:9.5px;}
-
-    /* Home + notification bell: pinned together to the top-right corner
-       of the header on mobile (instead of wrapping below the brand
-       block) so they sit up alongside the title row where there's
-       open space. */
-    .hdr-actions{
-      position:absolute;top:50%;right:14px;transform:translateY(-50%);margin-top:0;
-      gap:6px;z-index:4;
-    }
+    .brand{gap:10px;min-width:0;}
+    .brand .mark{font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .hdr-actions{gap:8px;}
     .home-reset-btn{
       padding:0;width:34px;height:34px;justify-content:center;border-radius:50%;
       font-size:11px;
     }
     .home-reset-btn span{display:none;}
+
+    .hdr-status-rows{gap:8px;padding-top:10px;}
+    .sub-row{font-size:11px;gap:6px;row-gap:5px;}
+    .hdr-status-rows .sub{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw;}
+    .hdr-status{font-size:11px;}
+    .sub-row-sync{row-gap:4px;}
+    .sub-row-sync .hdr-status{font-size:10.5px;white-space:normal;overflow-wrap:anywhere;}
+    .import-status{display:none;}
+    #pendingWrap{display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px;}
+    #pendingWrap, #pendingWrap button{font-size:10.5px;}
     .notif-panel{position:fixed!important;top:max(10px, env(safe-area-inset-top))!important;right:clamp(6px, 2.5vw, 12px)!important;left:clamp(6px, 2.5vw, 12px)!important;width:auto!important;max-width:none!important;max-height:min(85vh, 85dvh)!important;z-index:200;}
     .notif-panel .notif-list{max-height:min(70vh, 70dvh);}
 
@@ -929,20 +936,7 @@
   <header class="topband">
     <div class="brand">
       <button class="hamburger-btn" onclick="openProfileMenu()" title="Branch profiles"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
-      <div class="names">
-        <div class="mark">AUDITED ACCOUNTS</div>
-        <div class="sub-row" id="syncPill" title="Branch &amp; sync status">
-          <span class="sub" id="activeProfileLabel">Subsidiary Ledger</span>
-          <span class="hdr-sep">·</span>
-          <span class="hdr-dot" id="netDot"></span>
-          <span class="hdr-status" id="netLabel">Online</span>
-        </div>
-        <div class="sub-row sub-row-sync">
-          <span class="hdr-status" id="connStatus">Not connected yet.</span>
-          <button class="hdr-sync-btn" onclick="loadData()" title="Refresh"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></button>
-          <span id="pendingWrap" style="display:none;">· <span class="count" id="pendingCount">0</span> pending <button onclick="syncOutbox()">Sync now</button></span>
-        </div>
-      </div>
+      <div class="mark">AUDITED ACCOUNTS</div>
     </div>
     <div class="hdr-actions">
       <div class="notif-wrap">
@@ -955,6 +949,19 @@
         <svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>
         <span>Home</span>
       </button>
+    </div>
+    <div class="hdr-status-rows">
+      <div class="sub-row" id="syncPill" title="Branch &amp; sync status">
+        <span class="sub" id="activeProfileLabel">Subsidiary Ledger</span>
+        <span class="hdr-sep">·</span>
+        <span class="hdr-dot" id="netDot"></span>
+        <span class="hdr-status" id="netLabel">Online</span>
+      </div>
+      <div class="sub-row sub-row-sync">
+        <span class="hdr-status" id="connStatus">Not connected yet.</span>
+        <button class="hdr-sync-btn" onclick="loadData()" title="Refresh"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></button>
+        <span id="pendingWrap" style="display:none;">· <span class="count" id="pendingCount">0</span> pending <button onclick="syncOutbox()">Sync now</button></span>
+      </div>
     </div>
     <svg class="topband-wave-top" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true">
       <path d="M0,20 L1200,20 L1200,40 L0,40 Z" fill="#0F2160"/>
@@ -3553,6 +3560,12 @@
     if(currentSheet === name){
       outbox = [];
       saveOutbox_();
+      // Without this, the "N pending / Sync now" label and the bell
+      // badge keep showing the stale pre-clear count — the in-memory
+      // outbox is empty, so tapping "Sync now" silently no-ops
+      // (nothing to sync), leaving a "pending" indicator on screen
+      // that can never actually be cleared by the user.
+      updateSyncUI();
     }
     // Sweep any per-row remark drafts for this branch — they reference
     // row numbers that no longer exist on the sheet after a clear.
