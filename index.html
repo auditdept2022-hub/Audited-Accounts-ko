@@ -110,13 +110,13 @@
 
   .home-reset-btn{
     display:flex;align-items:center;justify-content:center;flex-shrink:0;
-    background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);color:#F3F5FF;
+    background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.34);color:#fff;
     cursor:pointer;width:36px;height:36px;line-height:1;border-radius:50%;
-    box-shadow:0 2px 8px rgba(6,10,36,.18), inset 0 1px 0 rgba(255,255,255,.25);
+    box-shadow:0 2px 8px rgba(6,10,36,.22), inset 0 1px 0 rgba(255,255,255,.3);
     backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
     transition:background .15s,transform .15s;text-shadow:0 1px 3px rgba(2,5,24,.5);
   }
-  .home-reset-btn:hover{background:rgba(255,255,255,.26);color:#fff;transform:translateY(-1px);}
+  .home-reset-btn:hover{background:rgba(255,255,255,.32);color:#fff;transform:translateY(-1px);}
   .home-reset-btn span{display:none;}
 
   .hdr-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;order:2;}
@@ -124,13 +124,13 @@
   .notif-wrap{position:relative;}
   .notif-btn{
     position:relative;display:flex;align-items:center;justify-content:center;
-    background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);color:#F3F5FF;
+    background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.34);color:#fff;
     cursor:pointer;width:36px;height:36px;line-height:1;border-radius:50%;
-    box-shadow:0 2px 8px rgba(6,10,36,.18), inset 0 1px 0 rgba(255,255,255,.25);
+    box-shadow:0 2px 8px rgba(6,10,36,.22), inset 0 1px 0 rgba(255,255,255,.3);
     backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
     transition:background .15s,transform .15s;
   }
-  .notif-btn:hover{background:rgba(255,255,255,.26);color:#fff;transform:translateY(-1px);}
+  .notif-btn:hover{background:rgba(255,255,255,.32);color:#fff;transform:translateY(-1px);}
   .notif-badge{
     position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 3px;
     background:var(--del);color:#fff;border-radius:9px;font-size:9.5px;font-weight:800;
@@ -769,8 +769,8 @@
   .conflict-item .ci-actions button:disabled{opacity:.5;cursor:not-allowed;}
 
   /* Branch profiles (hamburger menu + drawer) */
-  .hamburger-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#DCE3FA;font-size:15px;cursor:pointer;padding:8px 11px;line-height:1;border-radius:8px;transition:background .15s;flex-shrink:0;}
-  .hamburger-btn:hover{background:rgba(255,255,255,.16);color:#fff;}
+  .hamburger-btn{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;font-size:15px;cursor:pointer;padding:8px 11px;line-height:1;border-radius:8px;transition:background .15s;flex-shrink:0;}
+  .hamburger-btn:hover{background:rgba(255,255,255,.26);color:#fff;}
   .modal.profile-modal{max-width:480px;}
 
   .profile-search-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
@@ -894,10 +894,10 @@
        entire row by itself while "Print"/"Select" doubled up on the
        next one, so the panel read as an uneven stack of differently-
        sized boxes with wasted space down the right edge of the shorter
-       rows (see original screenshot). A fixed 2-column grid gives every
-       button the same width and fills both columns edge-to-edge; any
-       odd one out (last-of-type) spans the full row instead of leaving
-       its other half blank. */
+       rows. A fixed 2-column grid gives every button the same width
+       and fills both columns edge-to-edge; any odd one out
+       (last-of-type) spans the full row instead of leaving its other
+       half blank. */
     .toolbar .left, .toolbar .right{
       width:100%;
       flex-shrink:1;
@@ -1025,14 +1025,14 @@
       </div>
     </div>
     <svg class="topband-wave-top" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0,20 L1200,20 L1200,40 L0,40 Z" fill="#0F2160"/>
-      <path d="M0,20 L1200,20" fill="none" stroke="var(--gold)" stroke-width="2.5"/>
-      <path d="M0,17 L1200,17" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1"/>
+      <path d="M0,22 C200,8 400,8 600,20 C800,32 1000,32 1200,18 L1200,40 L0,40 Z" fill="#0F2160"/>
+      <path d="M0,22 C200,8 400,8 600,20 C800,32 1000,32 1200,18" fill="none" stroke="var(--gold)" stroke-width="2.5"/>
+      <path d="M0,19 C200,5 400,5 600,17 C800,29 1000,29 1200,15" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1"/>
     </svg>
     <svg class="topband-wave" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0,20 L1200,20 L1200,40 L0,40 Z" fill="#0F2160"/>
-      <path d="M0,20 L1200,20" fill="none" stroke="var(--gold)" stroke-width="2.5"/>
-      <path d="M0,17 L1200,17" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1"/>
+      <path d="M0,22 C200,8 400,8 600,20 C800,32 1000,32 1200,18 L1200,40 L0,40 Z" fill="#0F2160"/>
+      <path d="M0,22 C200,8 400,8 600,20 C800,32 1000,32 1200,18" fill="none" stroke="var(--gold)" stroke-width="2.5"/>
+      <path d="M0,19 C200,5 400,5 600,17 C800,29 1000,29 1200,15" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1"/>
     </svg>
   </header>
 
@@ -6139,8 +6139,8 @@
     clearTimeout(searchDebounce);
     searchDebounce = setTimeout(()=>{ render(); saveViewState_(); }, 150);
   });
-  document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
-  document.getElementById('profileOverlay').addEventListener('click', e=>{ if(e.target.id==='profileOverlay') closeProfileMenu(); });
+  // Clicking outside the modal (on the overlay backdrop) no longer closes it.
+  // Popups now only close via the X button, Cancel button, or Escape key.
   document.getElementById('newProfileName').addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); createProfile_(); } });
   document.addEventListener('keydown', e=>{
     if(e.key === 'Escape'){
