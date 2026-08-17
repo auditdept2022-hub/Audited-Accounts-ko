@@ -3998,6 +3998,14 @@
     if(isSyncing) return;
     if(!outbox.length) return;
     if(!navigator.onLine) { updateSyncUI(); return; }
+    if(!currentSheet){
+      // No branch is open yet, so there's nothing to sync against —
+      // avoid sending sheet=null to the backend (which surfaces as
+      // "Branch sheet 'null' not found"). The queued items will sync
+      // once a branch is opened and this runs again.
+      updateSyncUI();
+      return;
+    }
     isSyncing = true;
     document.getElementById('connStatus').textContent = 'Syncing offline changes…';
 
