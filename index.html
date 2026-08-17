@@ -104,7 +104,8 @@
      status + sync/pending status, stacked. Separated from row 1 by a
      faint divider so the two kinds of information read as distinct
      groups instead of one crowded block. */
-  .hdr-status-rows{display:flex;flex-direction:column;gap:6px;flex-basis:100%;order:3;padding-top:12px;margin-top:2px;border-top:1px solid rgba(255,255,255,.14);}
+  .hdr-status-rows{display:flex;flex-direction:column;gap:6px;flex-basis:100%;order:3;padding-top:13px;margin-top:3px;position:relative;}
+  .hdr-status-rows::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg, rgba(224,182,88,0) 0%, var(--gold) 15%, var(--gold) 85%, rgba(224,182,88,0) 100%);box-shadow:0 0 6px rgba(224,182,88,.55);}
   .hdr-status-rows .sub{font-family:'Courier New', Courier, monospace;font-size:15.5px;font-weight:700;color:#fff;letter-spacing:.4px;text-transform:uppercase;text-shadow:0 1px 4px rgba(2,5,24,.55);}
 
   .home-reset-btn{
@@ -3153,12 +3154,36 @@
   // queued if the local row can no longer be found) — this is what
   // powers the "who's pending?" detail view opened from the bell.
   function pendingSyncGroups_(){
+    // A single customer can have several queued items of the SAME kind
+    // (e.g. two offline remark edits on one row = two 'update' items in
+    // the outbox). Without de-duping, that customer's name would print
+    // once per queued item instead of once per customer. Track names
+    // already added per bucket (keyed by row when we have one, else by
+    // the name itself for brand-new offline-created rows) so each
+    // customer shows up exactly once per kind, even with many pending
+    // changes behind that one name. If ANY of that customer's queued
+    // items errored, the single line shown for them is the error line.
     const byKind = { create: [], update: [], delete: [] };
+    const seen = { create: new Map(), update: new Map(), delete: new Map() };
     outbox.forEach(item => {
       const local = customers.find(c => c.row === item.row);
       const name = (local && local.customer) || (item.fields && item.fields.customer) || (item.snapshot && item.snapshot.customer) || '(unnamed customer)';
-      const bucket = byKind[item.kind] || byKind.update;
-      bucket.push(item.status === 'error' ? name + ' — failed, needs attention' : name);
+      const kind = byKind[item.kind] ? item.kind : 'update';
+      const bucket = byKind[kind];
+      const seenMap = seen[kind];
+      const dedupeKey = (item.row !== undefined && item.row !== null) ? ('r:' + item.row) : ('n:' + name);
+      const isError = item.status === 'error';
+
+      if(!seenMap.has(dedupeKey)){
+        const idx = bucket.length;
+        bucket.push(isError ? name + ' — failed, needs attention' : name);
+        seenMap.set(dedupeKey, idx);
+      } else if(isError){
+        // A later item for the same customer errored — upgrade their
+        // one line to the error line so it isn't missed.
+        const idx = seenMap.get(dedupeKey);
+        bucket[idx] = name + ' — failed, needs attention';
+      }
     });
     return [
       { label: 'New records', names: byKind.create },
@@ -4369,8 +4394,49 @@
     }
   }
 
-  window.addEventListener('online', () => { updateSyncUI(); syncOutbox(); });
-  window.addEventListener('offline', updateSyncUI);
+  // ---- Fast reconnect sync ------------------------------------------
+  // The browser's 'online' event fires as soon as the OS reports a
+  // network interface change — which on mobile is often BEFORE the
+  // connection can actually reach the internet (e.g. Wi-Fi reassociates
+  // but hasn't gotten an IP/DNS yet, or the carrier is still handing off
+  // towers). syncOutbox() called at that instant just hits a connection
+  // error and falls back to the 20s poll below — so "lost signal, got
+  // it back" could sit queued for up to 20s even though the phone shows
+  // "Online" already. This burst of quick retries closes that gap: once
+  // 'online' fires, keep trying every ~2s (a handful of times) until a
+  // sync actually goes through or the burst gives up and leaves it to
+  // the regular 20s interval — so the moment the connection is truly
+  // usable again, the queued changes go out within ~2s instead of ~20s.
+  let reconnectBurstTimer_ = null;
+  function stopReconnectBurst_(){
+    if(reconnectBurstTimer_){ clearTimeout(reconnectBurstTimer_); reconnectBurstTimer_ = null; }
+  }
+  function startReconnectBurst_(){
+    stopReconnectBurst_();
+    let attempts = 0;
+    const MAX_ATTEMPTS = 6; // ~2s apart => gives up after ~12s, the 20s interval takes it from there
+    const tick = async () => {
+      reconnectBurstTimer_ = null;
+      if(!navigator.onLine || !outbox.length) return; // nothing left to chase
+      await syncOutbox();
+      attempts++;
+      if(outbox.length && navigator.onLine && attempts < MAX_ATTEMPTS){
+        reconnectBurstTimer_ = setTimeout(tick, 2000);
+      }
+    };
+    tick();
+  }
+  window.addEventListener('online', () => { updateSyncUI(); startReconnectBurst_(); });
+  window.addEventListener('offline', () => { updateSyncUI(); stopReconnectBurst_(); });
+  // Covers the case where the network never actually dropped from the
+  // browser's point of view but the APP was backgrounded/asleep for a
+  // while (phone locked, tab switched away) — coming back to the
+  // foreground is exactly when someone expects "did my changes save?"
+  // to already be answered, so kick a sync immediately instead of
+  // waiting for the next 20s tick.
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible' && navigator.onLine && outbox.length) startReconnectBurst_();
+  });
   setInterval(() => { if(navigator.onLine && outbox.length) syncOutbox(); }, 20000);
 
   // Tapping "⚠ Needs attention" directly on a record — a faster path
