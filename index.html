@@ -2924,7 +2924,7 @@
   async function resolveInitialSheet_(){
     try{
       const v = localStorage.getItem(currentSheetKey_());
-      if(v && v.trim()){ currentSheet = v.trim(); updateActiveProfileLabel_(); return; }
+      if(v && v.trim()){ currentSheet = v.trim(); updateActiveProfileLabel_(); pushGuard_('branch'); return; }
     }catch(e){ /* ignore, fall through to Home */ }
     currentSheet = null;
     updateActiveProfileLabel_();
@@ -2944,7 +2944,6 @@
   // null — a quick way back to a blank home screen without touching the
   // actual sheet data on the backend or forgetting the saved API URL.
   function resetToHome_(){
-    if(!confirm('Go back to Home? This clears the selected branch and data from view (nothing is deleted from your sheet).')) return;
     currentSheet = null;
     saveCurrentSheet_();
     customers = [];
@@ -2952,7 +2951,78 @@
     document.getElementById('emptyState').style.display = 'none';
     render();
     loadData();
+    consumeGuard_('branch');
   }
+
+  // ---- Phone/back-button handling ------------------------------------------
+  // As a plain web page (installed as a home-screen "app"), this has no
+  // built-in navigation of its own — the device back button/gesture just
+  // exits straight away, even with a modal open or a branch selected.
+  // This wires the History API so back instead undoes one "layer" of the
+  // app at a time, same as tapping the X or the Home button:
+  //   1. overlay layer — whichever of the edit/create modal or the
+  //      profile/branch-switch menu is open (they don't nest, so one
+  //      shared layer covers both).
+  //   2. branch layer — a branch profile being selected/viewed.
+  // Each layer pushes exactly one history entry when it opens, and
+  // "consumes" that entry (walks history back by one, without re-running
+  // its own undo logic) whenever it's closed some other way — the X
+  // button, Cancel, Save, tapping the backdrop, Escape, the Home icon —
+  // so the browser's history stays in sync with what's actually on
+  // screen. Only once both layers are closed does a back press fall
+  // through to actually exit the app, same as today.
+  let overlayGuardOpen_ = false;
+  let branchGuardOpen_ = false;
+  let suppressNextPopstate_ = false;
+
+  function pushGuard_(which){
+    const already = which === 'overlay' ? overlayGuardOpen_ : branchGuardOpen_;
+    if(already) return;
+    if(which === 'overlay') overlayGuardOpen_ = true; else branchGuardOpen_ = true;
+    history.pushState({ aaGuard: which }, '');
+  }
+
+  function consumeGuard_(which){
+    const open = which === 'overlay' ? overlayGuardOpen_ : branchGuardOpen_;
+    if(!open) return;
+    if(which === 'overlay') overlayGuardOpen_ = false; else branchGuardOpen_ = false;
+    suppressNextPopstate_ = true;
+    history.back();
+  }
+
+  window.addEventListener('popstate', ()=>{
+    if(suppressNextPopstate_){
+      // Caused by our own consumeGuard_() call above (something already
+      // closed itself via the X/Cancel/Save/Home/etc.) — nothing left to
+      // undo here, just absorb this one silently.
+      suppressNextPopstate_ = false;
+      return;
+    }
+    // A genuine back-button/gesture press. Undo whichever layer is
+    // topmost — overlay first, then branch — instead of letting the
+    // page (and the installed app) close.
+    if(overlayGuardOpen_){
+      overlayGuardOpen_ = false;
+      if(document.getElementById('overlay').classList.contains('open')) closeModal(true);
+      else if(document.getElementById('profileOverlay').classList.contains('open')) closeProfileMenu(true);
+      return;
+    }
+    if(branchGuardOpen_){
+      branchGuardOpen_ = false;
+      if(currentSheet){
+        currentSheet = null;
+        saveCurrentSheet_();
+        customers = [];
+        lastListHash = null;
+        document.getElementById('emptyState').style.display = 'none';
+        render();
+        loadData();
+      }
+      return;
+    }
+    // Nothing of ours was open — already at Home with no modal/menu, so
+    // let this pass through as a normal back navigation (exits the app).
+  });
 
   function updateActiveProfileLabel_(){
     const el = document.getElementById('activeProfileLabel');
@@ -3178,11 +3248,13 @@
     if(searchInput) searchInput.value = '';
     updateSpreadsheetLink_();
     loadProfiles_();
+    pushGuard_('overlay');
   }
 
-  function closeProfileMenu(){
+  function closeProfileMenu(fromPopstate){
     document.getElementById('profileOverlay').classList.remove('open');
     unlockBodyScroll();
+    if(!fromPopstate) consumeGuard_('overlay');
   }
 
   async function loadProfiles_(){
@@ -3305,6 +3377,7 @@
     }
     currentSheet = name;
     saveCurrentSheet_();
+    pushGuard_('branch');
     customers = [];
     lastListHash = null;
     document.getElementById('tableBody').innerHTML = '';
@@ -5398,6 +5471,7 @@
     setModalMarkerPickerColor_(c.marker || '');
     document.getElementById('overlay').classList.add('open');
     lockBodyScroll();
+    pushGuard_('overlay');
     // The box is inside a display:none overlay until the line above —
     // scrollHeight reads 0 there, so the auto-size measurement has to
     // happen on the next frame, once the overlay is actually laid out.
@@ -5428,10 +5502,11 @@
     setModalMarkerPickerColor_('');
     document.getElementById('overlay').classList.add('open');
     lockBodyScroll();
+    pushGuard_('overlay');
     requestAnimationFrame(autoResizeRemark_);
   }
 
-  function closeModal(){
+  function closeModal(fromPopstate){
     document.getElementById('overlay').classList.remove('open');
     unlockBodyScroll();
     activeRow = null;
@@ -5439,6 +5514,7 @@
     // — current remark or new remark — shows up immediately on the card
     // instead of waiting for the next unrelated re-render.
     render();
+    if(!fromPopstate) consumeGuard_('overlay');
   }
 
   // ---- Save / Delete ------------------------------------------------------
