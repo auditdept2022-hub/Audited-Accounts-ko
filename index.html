@@ -256,6 +256,8 @@
   .rc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px;}
   .rc-row + .rc-row{border-top:1px solid var(--line);}
   .rc-row-status{font-size:12.5px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .rc-row-status-btn{background:none;border:none;padding:2px 4px;margin:-2px -4px;border-radius:6px;cursor:pointer;text-align:left;font-family:inherit;transition:background .12s,color .12s;}
+  .rc-row-status-btn:hover{background:var(--accent-soft);color:var(--accent);}
   .rc-row-counts{display:flex;gap:6px;flex-shrink:0;}
   .rc-pill{font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px;cursor:pointer;border:none;font-family:inherit;}
   .rc-pill-has{background:var(--ok-soft);color:var(--ok);}
@@ -805,7 +807,7 @@
        spacing to actually read comfortably. This block only fires
        under 640px — the desktop rules above are untouched. ---- */
     .topband{
-      padding:calc(14px + var(--safe-t)) 14px 16px;
+      padding:calc(20px + var(--safe-t)) 14px 16px;
       gap:10px 12px;
     }
     .brand{gap:10px;min-width:0;}
@@ -1056,6 +1058,7 @@
               <div class="status-menu-actions">
                 <span>By status</span>
                 <div class="status-menu-links">
+                  <button type="button" class="status-menu-link" id="remarksCountBackBtn" data-act="rc-back" style="display:none;">← Back</button>
                   <button type="button" class="status-menu-link" id="remarksCountResetBtn" data-act="rc-reset">Reset</button>
                 </div>
               </div>
@@ -4965,7 +4968,7 @@
           const b = tally.get(key);
           const noRemarks = b.total - b.withRemarks;
           return `<div class="rc-row">` +
-            `<span class="rc-row-status">${escapeHtml(b.label)}</span>` +
+            `<button type="button" class="rc-row-status rc-row-status-btn" data-status="${escapeHtml(key)}">${escapeHtml(b.label)}</button>` +
             `<span class="rc-row-counts">` +
               `<button type="button" class="rc-pill rc-pill-has" data-status="${escapeHtml(key)}" data-remark="done">${b.withRemarks} with</button>` +
               `<button type="button" class="rc-pill rc-pill-none" data-status="${escapeHtml(key)}" data-remark="pending">${noRemarks} none</button>` +
@@ -4979,9 +4982,43 @@
   // main Status filter to just that one status and the Remarks filter to
   // the matching side, then re-renders so the list itself shows that
   // exact slice — not just the count.
+  //
+  // Clicking the STATUS NAME itself (not a pill) does the same but
+  // without narrowing to one remark side — it filters the list down to
+  // just that one status, both with and without remarks, so tapping
+  // "ADV - BN" shows every ADV - BN account instead of only the "with"
+  // or "none" half of it.
+  //
+  // Both of these overwrite whatever the Status/Remarks filters were
+  // previously — before, the only way back was "Reset", which wipes
+  // them to nothing (All statuses) and makes you re-pick from scratch.
+  // rcPrevSelection_ snapshots the filter state right before it gets
+  // overwritten by a name/pill click, and the "← Back" button (shown
+  // only once there's something to go back to) restores exactly that
+  // one previous selection — a single-step undo, not a full reset.
+  let rcPrevSelection_ = null;
+
+  function rcSnapshotBeforeChange_(){
+    rcPrevSelection_ = { statuses: Array.from(selectedStatuses_), remarkFilter: remarkFilterValue_ };
+    document.getElementById('remarksCountBackBtn').style.display = 'inline';
+  }
+
   document.getElementById('remarksCountMenuList').addEventListener('click', (e)=>{
+    const nameBtn = e.target.closest('.rc-row-status-btn');
+    if(nameBtn){
+      rcSnapshotBeforeChange_();
+      selectedStatuses_.clear();
+      selectedStatuses_.add(nameBtn.dataset.status);
+      pendingStatuses_ = new Set(selectedStatuses_);
+      syncStatusCheckboxes_();
+      updateStatusFilterBtn_();
+      setRemarkFilter_('');
+      closeRemarksCountMenu_();
+      return;
+    }
     const pill = e.target.closest('.rc-pill');
     if(!pill) return;
+    rcSnapshotBeforeChange_();
     const status = pill.dataset.status;
     selectedStatuses_.clear();
     selectedStatuses_.add(status);
@@ -4989,6 +5026,25 @@
     syncStatusCheckboxes_();
     updateStatusFilterBtn_();
     setRemarkFilter_(pill.dataset.remark);
+    closeRemarksCountMenu_();
+  });
+
+  // "← Back" restores the ONE previous selection saved by
+  // rcSnapshotBeforeChange_ — undoes the last name/pill tap instead of
+  // clearing everything the way Reset does. Only ever holds one step
+  // back (matches how the menu is actually used: narrow, then narrow
+  // again, then realize you want the step before that).
+  document.getElementById('remarksCountBackBtn').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    if(!rcPrevSelection_) return;
+    selectedStatuses_.clear();
+    rcPrevSelection_.statuses.forEach(v => selectedStatuses_.add(v));
+    pendingStatuses_ = new Set(selectedStatuses_);
+    syncStatusCheckboxes_();
+    updateStatusFilterBtn_();
+    setRemarkFilter_(rcPrevSelection_.remarkFilter);
+    rcPrevSelection_ = null;
+    document.getElementById('remarksCountBackBtn').style.display = 'none';
     closeRemarksCountMenu_();
   });
 
@@ -5003,6 +5059,8 @@
     syncStatusCheckboxes_();
     updateStatusFilterBtn_();
     setRemarkFilter_('');
+    rcPrevSelection_ = null;
+    document.getElementById('remarksCountBackBtn').style.display = 'none';
     closeRemarksCountMenu_();
   });
 
