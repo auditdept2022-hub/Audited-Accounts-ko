@@ -5683,8 +5683,26 @@
   // Live data still requires network — only the app shell is cached.
   if('serviceWorker' in navigator){
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(err => {
+      navigator.serviceWorker.register('sw.js').then(reg => {
+        // Ask the browser to check for a new sw.js right away (it
+        // normally only checks on its own schedule), so an update
+        // deployed to the site is picked up on this visit instead of
+        // waiting for some later one.
+        reg.update().catch(()=>{});
+      }).catch(err => {
         console.warn('Service worker registration failed:', err);
+      });
+
+      // Once a newly-installed service worker actually takes control
+      // (self.clients.claim() in sw.js, after skipWaiting), the page
+      // that's currently open is still running on the OLD cached shell
+      // in memory — reload once so it picks up the new one immediately,
+      // instead of only applying on the visit after next.
+      let reloadedForNewSw_ = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if(reloadedForNewSw_) return;
+        reloadedForNewSw_ = true;
+        window.location.reload();
       });
     });
   }
