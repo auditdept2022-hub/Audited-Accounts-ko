@@ -8,7 +8,12 @@
 // activate handler's cache cleanup actually runs once for everyone
 // currently on v1 (a same-named cache never looked "old", so it never
 // got purged).
-const CACHE_NAME = 'audited-accounts-shell-v2';
+// Bumped v2 -> v3 alongside the {cache:'no-store'} change below — same
+// reasoning: forces this file to be seen as "new" so install/activate
+// actually run for anyone whose browser was still holding an old
+// worker in memory, instead of silently continuing to run stale logic
+// until its own 24h update check happens to land.
+const CACHE_NAME = 'audited-accounts-shell-v3';
 const SHELL_FILES = [
   './',
   './index.html',
@@ -67,8 +72,15 @@ self.addEventListener('fetch', (event) => {
     // Network-first: try the live file, cache a copy of it for offline
     // use, and only fall back to whatever's cached if the network
     // request itself fails (actually offline / unreachable).
+    // {cache:'no-store'} bypasses the BROWSER's own HTTP cache, not just
+    // this service worker's cache. Without it, "network-first" here can
+    // still resolve to a stale response if the host sends any kind of
+    // Cache-Control/Expires header on index.html — the browser is free
+    // to answer fetch() out of its HTTP cache before this code ever
+    // sees a request go out, which looks identical to the SW "not
+    // working" from the outside. This forces an actual round-trip.
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: 'no-store' })
         .then((res) => {
           if (res && res.status === 200) {
             const clone = res.clone();

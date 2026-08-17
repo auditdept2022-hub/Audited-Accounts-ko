@@ -265,6 +265,31 @@
   .rc-pill-none{background:var(--od-soft);color:var(--od);}
   .rc-pill-none:hover{filter:brightness(.95);}
   .rc-empty{padding:10px;font-size:12.5px;color:var(--muted);}
+  /* Small legend so the green/tan pill colors are explained the first
+     time someone opens the breakdown, instead of only being learnable
+     by trial and error. */
+  .rc-legend{display:flex;gap:14px;padding:0 6px 8px;}
+  .rc-legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
+  .rc-legend-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;}
+  .rc-legend-dot-has{background:var(--ok);}
+  .rc-legend-dot-none{background:var(--od);}
+  /* Fixed-width pills so the "N with" / "N none" columns line up as a
+     table even though status names above them are ragged-length. */
+  .rc-pill{min-width:50px;text-align:center;}
+  /* Small close (✕) affordance next to Reset — previously the only way
+     out of this panel was an implicit tap-outside, which isn't
+     discoverable. */
+  .status-menu-close{background:none;border:none;color:var(--muted);font-size:14px;line-height:1;cursor:pointer;padding:2px 2px 2px 6px;border-radius:6px;}
+  .status-menu-close:hover{color:var(--text);background:#F1F2F8;}
+  /* Explicit text "Cancel" alongside the icon-only ✕ — some people
+     don't recognize a bare X as clickable, so the panel offers both.
+     Same shell as the main Status filter's OK button, just neutral
+     instead of filled, so the two don't compete for attention. */
+  .status-menu-cancel{background:none;border:1px solid var(--line);color:var(--muted);font-size:12.5px;font-weight:700;padding:7px 16px;border-radius:9px;cursor:pointer;touch-action:manipulation;transition:background .12s ease,color .12s ease;}
+  .status-menu-cancel:hover{background:#F4F5FB;color:var(--text);}
+  /* Running total under the list so the panel confirms scope at a
+     glance ("what am I even looking at") without counting rows. */
+  .rc-total{padding:8px 6px 2px;margin-top:4px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);text-align:right;}
   .toolbar-search .input{width:100%;max-width:340px;min-width:0;}
   /* On desktop this wrapper is invisible to layout — .left/.right stay
      direct flex children of .toolbar exactly as before. Only the mobile
@@ -477,6 +502,20 @@
   .status-switch{position:relative;display:flex;}
   .status-menu{position:fixed;top:0;left:0;z-index:200;display:none;flex-direction:column;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-md);padding:8px;min-width:220px;max-width:min(280px,calc(100vw - 16px));opacity:0;transform:translateY(-4px) scale(.98);transition:opacity .14s ease,transform .14s ease;}
   .status-menu.open{display:flex;opacity:1;transform:translateY(0) scale(1);}
+  /* Caret pointing back at whichever button opened the menu, so a
+     panel anchored under a small badge doesn't read as a disconnected
+     floating box. positionMenu_() sets --caret-left (button's center,
+     relative to the menu's left edge) and toggles menu-caret-above /
+     menu-caret-below depending on which side of the button it landed
+     on. Two stacked triangles (border + fill, 1px apart) give the
+     caret a hairline outline that matches the panel's border. */
+  .status-menu::before,.status-menu::after{content:'';position:absolute;left:var(--caret-left,20px);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;transform:translateX(-50%);display:none;}
+  .status-menu.menu-caret-below::before,.status-menu.menu-caret-below::after{display:block;}
+  .status-menu.menu-caret-below::before{top:-8px;border-bottom:8px solid var(--line);}
+  .status-menu.menu-caret-below::after{top:-7px;border-bottom:7px solid #fff;}
+  .status-menu.menu-caret-above::before,.status-menu.menu-caret-above::after{display:block;}
+  .status-menu.menu-caret-above::before{bottom:-8px;border-top:8px solid var(--line);}
+  .status-menu.menu-caret-above::after{bottom:-7px;border-top:7px solid #fff;}
   .status-menu-actions{display:flex;align-items:center;justify-content:space-between;padding:2px 6px 8px;margin-bottom:6px;border-bottom:1px solid var(--line);}
   .status-menu-actions span{font-size:10.5px;color:var(--muted);letter-spacing:.4px;text-transform:uppercase;font-weight:600;}
   .status-menu-links{display:flex;gap:10px;}
@@ -1060,9 +1099,18 @@
                 <div class="status-menu-links">
                   <button type="button" class="status-menu-link" id="remarksCountBackBtn" data-act="rc-back" style="display:none;">← Back</button>
                   <button type="button" class="status-menu-link" id="remarksCountResetBtn" data-act="rc-reset">Reset</button>
+                  <button type="button" class="status-menu-close" id="remarksCountCloseBtn" data-act="rc-close" title="Close" aria-label="Close">✕</button>
                 </div>
               </div>
+              <div class="rc-legend">
+                <span class="rc-legend-item"><span class="rc-legend-dot rc-legend-dot-has"></span>with remarks</span>
+                <span class="rc-legend-item"><span class="rc-legend-dot rc-legend-dot-none"></span>no remarks</span>
+              </div>
               <div class="status-menu-list" id="remarksCountMenuList"></div>
+              <div class="rc-total" id="remarksCountTotal"></div>
+              <div class="status-menu-ok-row">
+                <button type="button" class="status-menu-cancel" id="remarksCountCancelBtn" data-act="rc-cancel">Cancel</button>
+              </div>
             </div>
           </div>
           <button type="button" class="toolbar-toggle" id="toolbarToggleBtn" onclick="toggleToolbarExtra_()" title="Show import/export &amp; filters" aria-expanded="false" aria-controls="toolbarExtra">▾</button>
@@ -1359,12 +1407,25 @@
     if(left < MENU_EDGE_MARGIN) left = MENU_EDGE_MARGIN;
 
     let top = r.bottom + 6;
+    let below = true;
     if(top + mh > vh - MENU_EDGE_MARGIN){
       const above = r.top - 6 - mh;
       top = above > MENU_EDGE_MARGIN ? above : Math.max(MENU_EDGE_MARGIN, vh - MENU_EDGE_MARGIN - mh);
+      below = (top === above);
     }
     menuEl.style.left = left + 'px';
     menuEl.style.top = top + 'px';
+
+    // Point the caret at the trigger's horizontal center, clamped so it
+    // never sits past the panel's rounded corners even when the menu
+    // itself had to shift sideways to stay on-screen (e.g. a badge near
+    // the right edge). Flip which edge (top/bottom) it's drawn on to
+    // match whichever side the menu actually landed on above.
+    const btnCenter = r.left + r.width / 2;
+    const caretLeft = Math.max(14, Math.min(mw - 14, btnCenter - left));
+    menuEl.style.setProperty('--caret-left', caretLeft + 'px');
+    menuEl.classList.toggle('menu-caret-below', below);
+    menuEl.classList.toggle('menu-caret-above', !below);
   }
 
   // Keeps whichever menu is currently open correctly positioned across a
@@ -4976,6 +5037,16 @@
         }).join('');
       }
     }
+
+    // Footer summary so the panel confirms its own scope at a glance
+    // (e.g. after narrowing via the main Status filter, it's not
+    // obvious from the rows alone that you're looking at a subset).
+    const totalEl = document.getElementById('remarksCountTotal');
+    if(totalEl){
+      totalEl.textContent = order.length
+        ? total + ' account' + (total === 1 ? '' : 's') + ' across ' + order.length + ' status' + (order.length === 1 ? '' : 'es')
+        : '';
+    }
   }
 
   // Clicking a status's "with"/"none" pill in the breakdown menu jumps the
@@ -5064,6 +5135,19 @@
     closeRemarksCountMenu_();
   });
 
+  // "✕" and "Cancel" both just close the panel — unlike Reset/Back,
+  // neither touches whatever Status/Remarks filter is currently
+  // applied. Kept as two separate controls (icon + labelled text)
+  // since a bare "✕" isn't always recognized as clickable.
+  document.getElementById('remarksCountCloseBtn').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    closeRemarksCountMenu_();
+  });
+  document.getElementById('remarksCountCancelBtn').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    closeRemarksCountMenu_();
+  });
+
   function toggleRemarksCountMenu_(e){
     if(e) e.stopPropagation();
     const menu = document.getElementById('remarksCountMenu');
@@ -5073,9 +5157,10 @@
   function closeRemarksCountMenu_(){
     closePositionedMenu(document.getElementById('remarksCountMenu'));
   }
-  document.addEventListener('click', (e)=>{
-    if(!e.target.closest('#remarksCountSwitch')) closeRemarksCountMenu_();
-  });
+  // Deliberately no "click outside closes this" handler here — Cancel,
+  // ✕, and Esc (see the shared keydown handler below) are the only
+  // ways this particular panel dismisses, so a stray tap elsewhere on
+  // the page while reading the breakdown can't lose it by accident.
 
   function getFilteredCustomers(){
     const q = document.getElementById('searchBox').value.trim().toLowerCase();
@@ -5281,8 +5366,6 @@
         ? `<span class="tag-pending err" onclick="event.stopPropagation(); showRowSyncIssue_(${c.row});" style="cursor:pointer;" title="Tap to see why and fix it">⚠ Needs attention</span>`
         : (c._pending ? `<span class="tag-pending">⏳ Syncing</span>` : '');
       const recClass = 'rec' + (isConflict ? ' is-conflict' : (c._pending ? ' is-pending' : '')) + (mark ? ' marked-' + mark : '');
-      const markBtnClass = 'mark-btn' + (mark ? ' mark-btn-' + mark : '');
-      const markBtnTitle = mark ? 'Marked — click to change or clear' : 'Mark this customer';
 
       const html = `<div class="${recClass}" data-row="${c.row}">
         <div class="rec-top">
@@ -5311,12 +5394,6 @@
                   <input class="qi-input money" type="number" step="0.01" inputmode="decimal" placeholder="0.00" data-row="${c.row}" data-field="outstandingBalance" value="${c.outstandingBalance ? Number(c.outstandingBalance) : ''}">
                 </div>
               </div>
-            </div>
-            <button class="${markBtnClass}" title="${markBtnTitle}" data-act="mark" data-row="${c.row}">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 5h12l-2.6 4.2L17 13H5"/></svg>
-            </button>
-            <div class="row-actions">
-              <button class="icon-btn" title="Edit" data-act="edit" data-row="${c.row}"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
             </div>
           </div>
         </div>
@@ -6038,6 +6115,7 @@
     if(e.key === 'Escape'){
       closeModal();
       closeProfileMenu();
+      closeRemarksCountMenu_();
     }
   });
 
