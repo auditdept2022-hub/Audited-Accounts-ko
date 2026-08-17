@@ -155,6 +155,9 @@
   .notif-item.unread{background:var(--accent-soft);}
   .notif-item.unread:hover{background:#E4E8FA;}
   .notif-item:last-child{border-bottom:none;}
+  .notif-item-sync{background:var(--rstr-soft);}
+  .notif-item-sync:hover{background:#F3E3B8;}
+  .notif-item-sync .notif-msg{color:#8B6A1F;font-weight:700;}
 
   /* ---- Notification detail modal: shows the actual customer names
      behind an import summary line (who matched vs. who didn't), so a
@@ -3107,7 +3110,11 @@
   function renderNotifBadge_(){
     const badge = document.getElementById('notifBadge');
     if(!badge) return;
-    const unread = notifUnreadCount_();
+    // Unread notifications PLUS still-unsynced outbox items both count
+    // as "needs your attention" on the bell — otherwise a fully-read
+    // notif list would hide the badge even while changes are still
+    // waiting to sync.
+    const unread = notifUnreadCount_() + (typeof outbox !== 'undefined' ? outbox.length : 0);
     if(unread > 0){
       badge.style.display = 'flex';
       badge.textContent = unread > 99 ? '99+' : String(unread);
@@ -3116,13 +3123,34 @@
     }
   }
 
+  // Sits above the regular notification log, only while there's
+  // something queued. Tapping it fires the same sync the header's
+  // "Sync now" link does — no navigation to a detail screen, since
+  // there's nothing to drill into, just an action to take.
+  function notifPendingSyncHtml_(){
+    const pending = (typeof outbox !== 'undefined') ? outbox.length : 0;
+    if(!pending) return '';
+    const online = navigator.onLine;
+    const sub = online
+      ? 'Tap to sync now'
+      : "You're offline — will sync automatically once you're back online";
+    return `<div class="notif-item notif-item-sync" onclick="event.stopPropagation(); syncOutbox();">` +
+        `<div class="notif-dot2" style="background:var(--gold);"></div>` +
+        `<div class="notif-body">` +
+          `<div class="notif-msg">${pending} change${pending > 1 ? 's' : ''} waiting to sync</div>` +
+          `<div class="notif-time">${escapeHtml(sub)}</div>` +
+        `</div>` +
+      `</div>`;
+  }
+
   function renderNotifList_(){
     const list = document.getElementById('notifList');
+    const pendingHtml = notifPendingSyncHtml_();
     if(!notifications_.length){
-      list.innerHTML = '<div class="notif-empty">'
+      list.innerHTML = pendingHtml || ('<div class="notif-empty">'
         + '<svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="width:26px;height:26px;color:#C7CCE8;"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'
         + '<div>No notifications yet.<br>Import results and dashboard errors will show up here.</div>'
-        + '</div>';
+        + '</div>');
       return;
     }
     // Notifications ALWAYS stay listed here, whether read or not —
@@ -3132,7 +3160,7 @@
     // (matched/unmatched customer names) show the full breakdown;
     // older ones saved before that was tracked (or plain dashboard
     // errors) fall back to just showing the message itself.
-    list.innerHTML = notifications_.map((n, i) =>
+    list.innerHTML = pendingHtml + notifications_.map((n, i) =>
       `<div class="notif-item${n.err ? ' err' : ''}${n.read ? '' : ' unread'}" onclick="openNotifDetail_(${i})">` +
         `<div class="notif-dot2"></div>` +
         `<div class="notif-body">` +
@@ -3683,6 +3711,11 @@
     const wrap = document.getElementById('pendingWrap');
     wrap.style.display = pending ? 'inline' : 'none';
     document.getElementById('pendingCount').textContent = pending;
+    // Keep the bell badge and (if open) the notif list in sync with the
+    // outbox as it changes — not just at panel-open time — so the
+    // pending-sync row/count never goes stale while the panel's open.
+    renderNotifBadge_();
+    if(document.getElementById('notifPanel').style.display !== 'none') renderNotifList_();
 
     const errored = outbox.filter(o => o.status === 'error');
     const banner = document.getElementById('conflictBanner');
