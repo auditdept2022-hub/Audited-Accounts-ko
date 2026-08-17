@@ -926,7 +926,7 @@
     </div>
     <div class="hdr-actions">
       <div class="notif-wrap">
-        <button class="notif-btn" onclick="toggleNotifPanel_()" title="Notifications" id="notifBtn">
+        <button class="notif-btn" onclick="toggleNotifPanel_()" aria-label="Notifications" id="notifBtn">
           <svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
         </button>
@@ -938,7 +938,7 @@
           <div class="notif-list" id="notifList"></div>
         </div>
       </div>
-      <button class="home-reset-btn" onclick="resetToHome_()" title="Reset — clear selected branch and data">
+      <button class="home-reset-btn" onclick="resetToHome_()" aria-label="Home — clear selected branch and data">
         <svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>
         <span>Home</span>
       </button>
