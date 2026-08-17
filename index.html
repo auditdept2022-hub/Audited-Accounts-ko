@@ -130,8 +130,14 @@
        Clear all" title bar showed, the list below it was cut off).
        position:fixed escapes that clipping and is measured against the
        viewport instead, same pattern already used for the view/status
-       filter menus. */
-    position:fixed;top:0;left:0;width:320px;max-width:min(320px, 90vw);
+       filter menus.
+       Width/height are viewport-relative (clamp/vh) rather than one
+       fixed 320px box, so the panel scales down smoothly on narrow
+       phones and up on tablets/desktop instead of jumping at a single
+       breakpoint — same idea the mobile override below used to need,
+       now built in from the start. */
+    position:fixed;top:0;left:0;
+    width:clamp(260px, 88vw, 320px);max-width:92vw;
     background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lg);
     z-index:200;overflow:hidden;
   }
@@ -142,7 +148,7 @@
   }
   .notif-clear{background:none;border:none;color:var(--accent);font-size:11px;font-weight:700;cursor:pointer;padding:0;text-transform:none;letter-spacing:0;}
   .notif-clear:hover{text-decoration:underline;}
-  .notif-list{max-height:320px;min-height:120px;overflow-y:auto;}
+  .notif-list{max-height:min(320px, 60vh);min-height:120px;overflow-y:auto;}
   .notif-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:120px;padding:22px 14px;text-align:center;color:var(--muted-2);font-size:12.5px;}
   .notif-item{display:flex;gap:9px;padding:10px 14px;border-bottom:1px solid #F0F1F9;font-size:12.5px;line-height:1.4;cursor:pointer;transition:background .12s;}
   .notif-item:hover{background:#F4F5FB;}
@@ -809,8 +815,8 @@
       font-size:11px;
     }
     .home-reset-btn span{display:none;}
-    .notif-panel{position:fixed!important;top:10px!important;right:8px!important;left:8px!important;width:auto!important;max-width:none!important;max-height:85vh!important;z-index:200;}
-    .notif-panel .notif-list{max-height:70vh;}
+    .notif-panel{position:fixed!important;top:max(10px, env(safe-area-inset-top))!important;right:clamp(6px, 2.5vw, 12px)!important;left:clamp(6px, 2.5vw, 12px)!important;width:auto!important;max-width:none!important;max-height:min(85vh, 85dvh)!important;z-index:200;}
+    .notif-panel .notif-list{max-height:min(70vh, 70dvh);}
 
 
     /* ---- Toolbar: was a single horizontally-scrolling row on
