@@ -4128,6 +4128,12 @@
           const local = customers.find(x => x.row === item.tempRow);
           if(local){ local.row = result.row; delete local._pending; }
           outbox.forEach(other => { if(other !== item && other.tempRow === item.tempRow) other.row = result.row; });
+          // Register this new row in serverByRow too — a later queued
+          // item in this same pass (e.g. a second edit made offline
+          // right after creating the record) needs something to diff
+          // its own snapshot against.
+          const created = customers.find(x => x.row === result.row);
+          if(created) serverByRow[result.row] = Object.assign({}, created);
         } else if(item.kind === 'update'){
           if(item._needsFreshPull){
             // This item's fields/remark were merged via the per-field
@@ -4145,10 +4151,25 @@
             // sheet to learn something we already know.
             applyConfirmedUpdate_(item);
           }
+          // Keep serverByRow current for this pass. Without this, a
+          // SECOND queued edit to the same row (e.g. the remark was
+          // edited twice while offline, producing two outbox items)
+          // gets its drift check compared against the stale
+          // pre-sync server snapshot fetched at the top of this
+          // function — even though the first edit above just changed
+          // the server's real value — causing a false "someone else
+          // changed this row" positive that silently drops the second
+          // edit instead of sending it. Patching serverByRow with
+          // exactly what was just written keeps every subsequent
+          // item's drift check accurate against what the server
+          // actually has after this pass's earlier writes.
+          const patched = customers.find(x => x.row === item.row);
+          if(patched) serverByRow[item.row] = Object.assign({}, patched);
         } else if(item.kind === 'delete'){
           // Deletion is unambiguous — nothing to merge — always safe to
           // apply locally without a reload.
           applyConfirmedDelete_(item);
+          delete serverByRow[item.row];
         }
         syncedAny = true;
       }catch(err){
