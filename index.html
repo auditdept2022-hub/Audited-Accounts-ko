@@ -4373,6 +4373,40 @@
   window.addEventListener('offline', updateSyncUI);
   setInterval(() => { if(navigator.onLine && outbox.length) syncOutbox(); }, 20000);
 
+  // Tapping "⚠ Needs attention" directly on a record — a faster path
+  // to the same Retry/Discard choice the top conflict banner offers,
+  // for anyone who didn't notice the banner (or scrolled past it). A
+  // record only ever gets this tag because it has a real queued
+  // change that the server rejected (status 'error') — it will keep
+  // showing until that item is explicitly retried or discarded; it's
+  // never going to clear itself, by design, so nothing is silently
+  // lost.
+  function showRowSyncIssue_(row){
+    const items = outbox.filter(o => o.row === row && (o.status === 'error' || o.status === 'conflict'));
+    if(!items.length){
+      toast('No stuck sync item found for this record — pull to refresh.');
+      return;
+    }
+    const item = items[0];
+    const c = customers.find(x => x.row === row);
+    const label = (c && c.customer) || 'this customer';
+    const kindLabel = { create: 'a new record', update: 'an edit', delete: 'a delete' }[item.kind] || 'a change';
+    // The id embeds its own creation timestamp (see genId_: 'o' + Date.now() + …),
+    // so even an item with no saved error message can at least say WHEN it was
+    // queued — useful for telling "this just failed" apart from "this has been
+    // stuck for days."
+    const ts = parseInt(String(item.id).slice(1), 10);
+    const queuedLabel = ts && !isNaN(ts) ? new Date(ts).toLocaleString() : 'unknown time';
+    const detail = item.error
+      ? ('\n\nServer said: ' + item.error)
+      : '\n\nNo error message was saved for this one (likely queued before this detail was being captured). Retrying now will record a fresh one if it fails again.';
+    const ok = confirm(
+      '"' + label + '" has ' + kindLabel + ' that failed to save.\nQueued: ' + queuedLabel + detail +
+      '\n\nOK = Retry sending it again.\nCancel = Discard this change and keep only what\'s on the sheet.'
+    );
+    resolveConflict(item.id, ok ? 'retry' : 'discard');
+  }
+
   let isLoading = false;
 
   // ---- Local list cache -----------------------------------------------
@@ -5115,7 +5149,7 @@
       }
 
       const pendingTag = isConflict
-        ? `<span class="tag-pending err">⚠ Needs attention</span>`
+        ? `<span class="tag-pending err" onclick="event.stopPropagation(); showRowSyncIssue_(${c.row});" style="cursor:pointer;" title="Tap to see why and fix it">⚠ Needs attention</span>`
         : (c._pending ? `<span class="tag-pending">⏳ Syncing</span>` : '');
       const recClass = 'rec' + (isConflict ? ' is-conflict' : (c._pending ? ' is-pending' : '')) + (mark ? ' marked-' + mark : '');
       const markBtnClass = 'mark-btn' + (mark ? ' mark-btn-' + mark : '');
