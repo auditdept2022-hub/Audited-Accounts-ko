@@ -5161,6 +5161,18 @@
   // ✕, and Esc (see the shared keydown handler below) are the only
   // ways this particular panel dismisses, so a stray tap elsewhere on
   // the page while reading the breakdown can't lose it by accident.
+  //
+  // Belt-and-suspenders: stop every click inside the panel from
+  // bubbling up to document at all. Nothing currently listens for a
+  // document-level "outside click" for this menu, but this guarantees
+  // that stays true even if one gets added elsewhere later (e.g. a
+  // future generic "close any open dropdown" handler) — a click on
+  // Cancel/✕/a row still runs its own handler first (those are bound
+  // directly on the elements, so they fire before this), it just never
+  // reaches document afterward.
+  document.getElementById('remarksCountMenu').addEventListener('click', (e)=>{
+    e.stopPropagation();
+  });
 
   function getFilteredCustomers(){
     const q = document.getElementById('searchBox').value.trim().toLowerCase();
