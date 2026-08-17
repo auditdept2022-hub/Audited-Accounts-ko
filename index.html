@@ -1177,7 +1177,8 @@
     </div>
     <div class="modal-foot">
       <div class="right">
-        <button class="btn primary" onclick="closeNotifDetail_()">Close</button>
+        <button class="btn" onclick="closeNotifDetail_()">Close</button>
+        <button class="btn primary" id="notifDetailSyncBtn" style="display:none;" onclick="closeNotifDetail_(); syncOutbox();">Sync now</button>
       </div>
     </div>
   </div>
@@ -3131,23 +3132,59 @@
   }
 
   // Sits above the regular notification log, only while there's
-  // something queued. Tapping it fires the same sync the header's
-  // "Sync now" link does — no navigation to a detail screen, since
-  // there's nothing to drill into, just an action to take.
+  // something queued. Tapping it opens the same detail view used for
+  // import summaries, but listing exactly which customers have a
+  // change waiting to sync — "3 pending" on its own doesn't say who,
+  // so this turns that count into an actual, checkable list.
   function notifPendingSyncHtml_(){
     const pending = (typeof outbox !== 'undefined') ? outbox.length : 0;
     if(!pending) return '';
-    const online = navigator.onLine;
-    const sub = online
-      ? 'Tap to sync now'
-      : "You're offline — will sync automatically once you're back online";
-    return `<div class="notif-item notif-item-sync" onclick="event.stopPropagation(); syncOutbox();">` +
+    return `<div class="notif-item notif-item-sync" onclick="event.stopPropagation(); openPendingSyncDetail_();">` +
         `<div class="notif-dot2" style="background:var(--gold);"></div>` +
         `<div class="notif-body">` +
           `<div class="notif-msg">${pending} change${pending > 1 ? 's' : ''} waiting to sync</div>` +
-          `<div class="notif-time">${escapeHtml(sub)}</div>` +
+          `<div class="notif-time">Tap to see which customers</div>` +
         `</div>` +
       `</div>`;
+  }
+
+  // Groups queued outbox items by what kind of change they are, using
+  // each item's current customer name (falling back to whatever was
+  // queued if the local row can no longer be found) — this is what
+  // powers the "who's pending?" detail view opened from the bell.
+  function pendingSyncGroups_(){
+    const byKind = { create: [], update: [], delete: [] };
+    outbox.forEach(item => {
+      const local = customers.find(c => c.row === item.row);
+      const name = (local && local.customer) || (item.fields && item.fields.customer) || (item.snapshot && item.snapshot.customer) || '(unnamed customer)';
+      const bucket = byKind[item.kind] || byKind.update;
+      bucket.push(item.status === 'error' ? name + ' — failed, needs attention' : name);
+    });
+    return [
+      { label: 'New records', names: byKind.create },
+      { label: 'Updates', names: byKind.update },
+      { label: 'Deletions', names: byKind.delete }
+    ].filter(g => g.names.length);
+  }
+
+  // Opens the shared notif-detail modal in "pending sync" mode: the
+  // customer-name breakdown from pendingSyncGroups_() plus a Sync now
+  // button, rather than the usual import matched/unmatched view.
+  function openPendingSyncDetail_(){
+    document.getElementById('notifPanel').style.display = 'none';
+    if(openPositionedMenu_ && openPositionedMenu_.menuEl === document.getElementById('notifPanel')) openPositionedMenu_ = null;
+    const pending = outbox.length;
+    document.getElementById('notifDetailTitle').textContent = 'Waiting to sync';
+    document.getElementById('notifDetailMeta').textContent = pending
+      ? (pending + ' change' + (pending > 1 ? 's' : '') + ' queued')
+      : 'Nothing queued right now';
+    const groups = pendingSyncGroups_();
+    document.getElementById('notifDetailGroups').innerHTML = groups.length
+      ? groups.map(g => notifDetailGroupHtml_(g.label, g.names, false)).join('')
+      : `<div class="notif-detail-empty">Nothing waiting to sync.</div>`;
+    document.getElementById('notifDetailSyncBtn').style.display = pending ? 'inline-flex' : 'none';
+    document.getElementById('notifDetailOverlay').classList.add('open');
+    lockBodyScroll();
   }
 
   function renderNotifList_(){
@@ -3197,6 +3234,7 @@
     document.getElementById('notifPanel').style.display = 'none';
     if(openPositionedMenu_ && openPositionedMenu_.menuEl === document.getElementById('notifPanel')) openPositionedMenu_ = null;
     document.getElementById('notifDetailMeta').textContent = new Date(n.ts).toLocaleString();
+    document.getElementById('notifDetailSyncBtn').style.display = 'none';
 
   if(n.detail){
       const d = n.detail;
