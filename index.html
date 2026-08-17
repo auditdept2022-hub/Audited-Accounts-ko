@@ -888,21 +888,40 @@
       overflow:visible;
       flex-wrap:wrap;
     }
+    /* Action buttons (.left) and filters (.right > .filter-row) each
+       used to be a flex-wrap row, which packs whichever buttons happen
+       to fit per line — a long label like "Import Accounts" filled an
+       entire row by itself while "Print"/"Select" doubled up on the
+       next one, so the panel read as an uneven stack of differently-
+       sized boxes with wasted space down the right edge of the shorter
+       rows (see original screenshot). A fixed 2-column grid gives every
+       button the same width and fills both columns edge-to-edge; any
+       odd one out (last-of-type) spans the full row instead of leaving
+       its other half blank. */
     .toolbar .left, .toolbar .right{
       width:100%;
-      flex-wrap:wrap;
       flex-shrink:1;
     }
-    .toolbar .left{order:1;padding-right:0;}
+    .toolbar .left{
+      order:1;padding-right:0;
+      display:grid;grid-template-columns:1fr 1fr;gap:8px;
+    }
+    .toolbar .left .btn{width:100%;justify-content:center;margin:0;}
+    .toolbar .left .btn:last-of-type{grid-column:1 / -1;}
     .toolbar .right{order:2;padding-right:0;}
     .toolbar-search{order:1;gap:8px;align-items:center;}
     .toolbar-search .input{flex:1;min-width:0;}
-    .toolbar .btn, .toolbar select{flex:0 0 auto;}
     .toolbar .input{min-width:0;width:100%;}
-    .filter-row{display:flex;flex-wrap:wrap;width:100%;gap:8px;}
-    .filter-row .view-switch, .filter-row .status-switch, .filter-row select{flex:1 1 140px;min-width:120px;}
+    /* The vertical divider separates the button row from the filter
+       row on desktop's single horizontal toolbar. On mobile everything
+       is already stacked (and .toolbar-extra.open draws its own
+       border-top above this whole section), so the divider was just a
+       stray 1px-wide empty row eating vertical space for no reason. */
+    .toolbar .right .toolbar-divider{display:none;}
+    .filter-row{display:grid;grid-template-columns:1fr 1fr;width:100%;gap:8px;}
+    .filter-row > div:last-child{grid-column:1 / -1;}
+    .filter-row .view-switch, .filter-row .status-switch{min-width:0;}
     .filter-row .view-switch .btn, .filter-row .status-switch .btn{width:100%;}
-    .filter-row select{width:100%;}
 
     .toolbar-toggle{
       display:flex;align-items:center;justify-content:center;flex-shrink:0;
