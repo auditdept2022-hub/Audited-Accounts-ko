@@ -2962,7 +2962,7 @@
   async function resolveInitialSheet_(){
     try{
       const v = localStorage.getItem(currentSheetKey_());
-      if(v && v.trim()){ currentSheet = v.trim(); updateActiveProfileLabel_(); pushGuard_('branch'); return; }
+      if(v && v.trim()){ currentSheet = v.trim(); updateActiveProfileLabel_(); pushGuard_('branch'); restoreViewStateEarly_(); return; }
     }catch(e){ /* ignore, fall through to Home */ }
     currentSheet = null;
     updateActiveProfileLabel_();
@@ -3505,6 +3505,7 @@
         return;
       }
     }
+    saveViewState_(); // remember where we were on the branch we're leaving
     currentSheet = name;
     saveCurrentSheet_();
     pushGuard_('branch');
@@ -3513,7 +3514,9 @@
     document.getElementById('tableBody').innerHTML = '';
     loadOutbox_();
     updateSyncUI();
+    restoreViewStateEarly_(); // and pick up whatever was saved for the branch we're entering
     await loadData();
+    restoreScrollPosition_();
     toast('Switched to ' + name + '.');
   }
 
@@ -4736,6 +4739,7 @@
     updateStatusFilterBtn_();
     closeStatusMenu_();
     render();
+    saveViewState_();
   }
 
   function toggleStatusMenu_(e){
@@ -4804,6 +4808,7 @@
     updateRemarkFilterBtn_();
     closeRemarkMenu_();
     render();
+    saveViewState_();
   }
   function toggleRemarkMenu_(e){
     if(e) e.stopPropagation();
@@ -5515,6 +5520,103 @@
     try{ localStorage.removeItem(draftKey_(row, field)); }catch(err){ /* noop */ }
   }
 
+  // ---- View state (search / filters / panel / scroll position) --------
+  //
+  // On a phone, swiping the app away from Recents doesn't just "close"
+  // it — the browser/PWA process gets killed outright, so the next tap
+  // is a genuine fresh page load, not a resume. Everything that only
+  // lived in memory (what was typed in the search box, which status/
+  // remarks filter was picked, whether the filters panel was expanded,
+  // how far down the list you'd scrolled) was gone, even though the
+  // actual DATA was fine (that part was already cached/queued). This
+  // section saves that "what was I looking at" state to localStorage,
+  // per branch, so reopening the app after being swiped away puts you
+  // right back where you left off instead of a blank slate.
+  function viewStateKey_(){ return 'aa_view_state_v1:' + API_URL + ':' + currentSheet; }
+
+  function saveViewState_(){
+    if(!currentSheet) return;
+    try{
+      const searchEl = document.getElementById('searchBox');
+      const extraEl = document.getElementById('toolbarExtra');
+      const state = {
+        search: searchEl ? searchEl.value : '',
+        remarkFilter: remarkFilterValue_,
+        statuses: Array.from(selectedStatuses_),
+        toolbarOpen: extraEl ? extraEl.classList.contains('open') : false,
+        scrollY: window.scrollY || 0
+      };
+      localStorage.setItem(viewStateKey_(), JSON.stringify(state));
+    }catch(e){ /* storage full/unavailable — just won't restore next time */ }
+  }
+
+  function loadViewState_(){
+    try{
+      const raw = localStorage.getItem(viewStateKey_());
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){ return null; }
+  }
+
+  // Reapplies search text + filters + panel state right away (before the
+  // list even loads) so render() picks them up on the very first paint.
+  // Status values that no longer exist in this branch are silently
+  // dropped later by populateStatusFilter_ once customers actually load
+  // — same safety net it already applies to a live selection.
+  function restoreViewStateEarly_(){
+    const state = loadViewState_();
+    try{
+      const searchEl = document.getElementById('searchBox');
+      if(searchEl) searchEl.value = (state && state.search) || '';
+      remarkFilterValue_ = (state && state.remarkFilter) || '';
+      updateRemarkFilterBtn_();
+      selectedStatuses_.clear();
+      if(state && Array.isArray(state.statuses)){
+        state.statuses.forEach(v => selectedStatuses_.add(v));
+      }
+      pendingStatuses_ = new Set(selectedStatuses_);
+      updateStatusFilterBtn_();
+      const extraEl = document.getElementById('toolbarExtra');
+      const toggleBtn = document.getElementById('toolbarToggleBtn');
+      if(extraEl && toggleBtn){
+        const open = !!(state && state.toolbarOpen);
+        extraEl.classList.toggle('open', open);
+        toggleBtn.classList.toggle('open', open);
+        toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        toggleBtn.title = open ? 'Hide import/export & filters' : 'Show import/export & filters';
+      }
+    }catch(e){ /* best-effort */ }
+  }
+
+  // Restores scroll position — separate from the above because it has
+  // to happen AFTER the list has actually rendered (rows need to exist
+  // for the page to have anything to scroll to). Two rAFs give the
+  // browser a chance to finish layout for the just-rendered rows first.
+  function restoreScrollPosition_(){
+    const state = loadViewState_();
+    if(!state || !state.scrollY) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, state.scrollY);
+      });
+    });
+  }
+
+  let viewStateSaveDebounce_;
+  function saveViewStateDebounced_(){
+    clearTimeout(viewStateSaveDebounce_);
+    viewStateSaveDebounce_ = setTimeout(saveViewState_, 250);
+  }
+
+  // Belt-and-suspenders: 'pagehide' fires reliably right before a mobile
+  // browser suspends/kills the page (including the "swiped from
+  // Recents" case), so flush the latest state immediately instead of
+  // trusting the debounce timer to have already fired.
+  window.addEventListener('pagehide', saveViewState_);
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'hidden') saveViewState_();
+  });
+  window.addEventListener('scroll', saveViewStateDebounced_, { passive: true });
+
   // Clears every draft field for a row in one call — used after a
   // successful save/delete, when nothing should be left pending for
   // that customer any more. Also clears the old 'new'-field draft key
@@ -5863,12 +5965,13 @@
     btn.classList.toggle('open', isOpen);
     btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
     btn.title = isOpen ? 'Hide import/export & filters' : 'Show import/export & filters';
+    saveViewState_();
   }
 
   let searchDebounce;
   document.getElementById('searchBox').addEventListener('input', ()=>{
     clearTimeout(searchDebounce);
-    searchDebounce = setTimeout(render, 150);
+    searchDebounce = setTimeout(()=>{ render(); saveViewState_(); }, 150);
   });
   document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
   document.getElementById('profileOverlay').addEventListener('click', e=>{ if(e.target.id==='profileOverlay') closeProfileMenu(); });
@@ -5890,6 +5993,7 @@
       document.getElementById('dashPanel').style.display = 'block';
       await loadData();
       if(outbox.length) syncOutbox();
+      restoreScrollPosition_();
     })();
   } else {
     document.getElementById('setupPanel').style.display = 'block';
