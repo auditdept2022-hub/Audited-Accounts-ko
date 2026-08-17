@@ -3684,36 +3684,15 @@
     wrap.style.display = pending ? 'inline' : 'none';
     document.getElementById('pendingCount').textContent = pending;
 
-    const conflicts = outbox.filter(o => o.status === 'conflict');
     const errored = outbox.filter(o => o.status === 'error');
     const banner = document.getElementById('conflictBanner');
-    if(!conflicts.length && !errored.length){
+    if(!errored.length){
       banner.style.display = 'none';
       banner.innerHTML = '';
       return;
     }
     banner.style.display = 'block';
     let html = '';
-    if(conflicts.length){
-      html += `<div class="conflict-banner"><div class="cb-head">⚠ ${conflicts.length} change${conflicts.length>1?'s':''} couldn't auto-sync — someone else edited ${conflicts.length>1?'these':'this'} while you were offline</div>` +
-        conflicts.map(c=>{
-          const name = (c.fields && c.fields.customer) || (c.snapshot && c.snapshot.customer) || 'this customer';
-          const isDelete = c.kind === 'delete';
-          return `<div class="conflict-item">
-            <div class="ci-name">${escapeHtml(name)}</div>
-            <div class="ci-detail">${isDelete ? "Someone else edited this record while you had it queued for deletion. Choose whether to delete it or leave it as-is." : "Someone else edited this record while you were offline. Only the fields that actually differ are shown below — pick which side to keep for each, then Save."}</div>
-            ${renderConflictPicker_(c)}
-            <div class="ci-actions">
-              ${isDelete
-                ? `<button class="discard" onclick="resolveConflict('${c.id}','keep')">Delete anyway</button>
-                   <button class="save" onclick="resolveConflict('${c.id}','discard')">Keep record (cancel delete)</button>`
-                : `<button class="save" onclick="applyConflictPick('${c.id}')">Save selection</button>
-                   <button class="discard" onclick="resolveConflict('${c.id}','discard')">Discard all my changes</button>`}
-            </div>
-          </div>`;
-        }).join('');
-      html += `</div>`;
-    }
     if(errored.length){
       html += `<div class="conflict-banner"><div class="cb-head">⚠ ${errored.length} change${errored.length>1?'s':''} failed to save to the sheet</div>` +
         errored.map(c=>{
@@ -4070,26 +4049,30 @@
           if(!serverRow){
             // Row is gone server-side. For a delete, that's already the
             // desired end state — just drop the queued item. For an
-            // update, there's nothing left to update — flag it so the
-            // user notices rather than silently losing the edit.
+            // update, there's nothing left to update — the row itself
+            // is gone, so there's no "sheet version" to fall back to;
+            // drop the queued change (same as any other drift below)
+            // and let the reload reflect that the row no longer exists.
             if(item.kind === 'delete'){
               applyConfirmedDelete_(item);
               syncedAny = true;
               continue;
             }
-            item.status = 'conflict';
-            item.serverSnapshot = null; // signals "row no longer exists"
-            remaining.push(item);
+            needsFullReload = true;
+            syncedAny = true;
             continue;
           }
           const drifted = Object.keys(item.snapshot).some(k => String(serverRow[k] ?? '') !== String(item.snapshot[k] ?? ''));
           if(drifted){
-            item.status = 'conflict';
-            // Freeze what the sheet actually holds right now, so the
-            // conflict banner can show it next to "your version" even
-            // after this sync pass finishes and serverList goes away.
-            item.serverSnapshot = Object.assign({}, serverRow);
-            remaining.push(item);
+            // Someone else changed this row while this device was
+            // offline. Rather than pausing here for a manual pick,
+            // always defer to whatever's currently on the sheet — drop
+            // this queued change outright and let the reload below pull
+            // in the sheet's version. That sheet version is treated as
+            // the newest/authoritative one, since it's whatever was
+            // actually saved most recently.
+            needsFullReload = true;
+            syncedAny = true;
             continue;
           }
         }
@@ -4168,7 +4151,7 @@
 
     if(syncedAny && !outbox.length){
       toast('Offline changes synced.');
-    } else if(outbox.some(o => o.status === 'conflict' || o.status === 'error')){
+    } else if(outbox.some(o => o.status === 'error')){
       document.getElementById('connStatus').textContent = 'Some offline changes need your attention.';
     } else if(hitConnectionError){
       document.getElementById('connStatus').textContent = 'Sync paused — ' + connErrMsg;
