@@ -883,6 +883,17 @@
     .modal-head{padding:16px 18px 24px;}
     .modal-body{padding:18px;}
     .modal-foot{padding:14px 18px calc(14px + var(--safe-b));flex-wrap:wrap;}
+
+    /* Branch Profiles specifically is anchored to the TOP instead — it
+       has a search box right under its header, and bottom-anchoring
+       meant that whenever the on-screen keyboard opened to type a
+       search, the browser's shrinking layout viewport pushed the whole
+       (bottom-pinned) sheet down with it, shoving the title/search bar
+       out of view and making it look like the panel "sank" while
+       typing. Top-anchoring keeps the header pinned to the top of the
+       screen regardless of keyboard height. */
+    #profileOverlay{align-items:flex-start;}
+    #profileOverlay .modal{border-radius:0 0 16px 16px;max-height:calc(100dvh - env(safe-area-inset-top) - 10px);}
     .modal-foot .left{width:100%;margin-right:0;order:2;}
     .modal-foot .left .btn{flex:1;}
     .modal-foot .right{width:100%;order:1;}
