@@ -70,6 +70,14 @@
   ::-webkit-scrollbar{width:10px;height:10px;}
   ::-webkit-scrollbar-thumb{background:var(--ink);border-radius:6px;}
   ::-webkit-scrollbar-thumb:hover{background:var(--jet);}
+  /* The rules above are meant for inner scrollable panels (modal body,
+     notif list, etc.) — but an unscoped ::-webkit-scrollbar also styles
+     the page's own scrollbar. Browser scrollbars paint above the page's
+     stacking context regardless of z-index, so that page-level bar was
+     rendering on top of the sticky header. Hide it there specifically;
+     the rules above still apply everywhere else. */
+  html{scrollbar-width:none;}
+  html::-webkit-scrollbar{width:0;height:0;display:none;}
   button, .btn, .icon-btn, .hamburger-btn, .hdr-sync-btn{touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
 
   .shell{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;}
@@ -87,7 +95,14 @@
        and the icon buttons/layout untouched — just eased how dark it
        gets. */
     background:radial-gradient(ellipse 60% 100% at 50% 50%, rgba(10,18,50,.3) 0%, rgba(10,18,50,0) 70%), linear-gradient(100deg, #2A4BB8 0%, #1E3480 50%, #16245C 100%);
-    color:#EDEFF9;padding:calc(16px + var(--safe-t)) 26px 24px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px;
+    /* Top/bottom padding and the row-gap below are kept equal on
+       purpose: whichever row ends up first (title/icons) and whichever
+       ends up last (status text) each get the same breathing room from
+       the header's edges, and the same breathing room from each other.
+       Tightening the header later just means shrinking these two
+       numbers together — nothing here is tuned per-row, so nothing can
+       end up flush against an edge again. */
+    color:#EDEFF9;padding:calc(20px + var(--safe-t)) 26px 20px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px;
     box-shadow:0 2px 10px rgba(10,23,72,.25);
     overflow:hidden;
   }
@@ -152,15 +167,17 @@
      gold/white split ("AUDITED" in the accent color, "ACCOUNTS" in
      white) instead of one flat white block — gives the title itself
      graphic weight rather than relying only on size. */
-  .brand .mark{font-family:'Courier New', Courier, monospace;font-weight:800;font-size:25px;letter-spacing:.8px;color:#fff;line-height:1.15;text-transform:uppercase;text-shadow:0 1px 4px rgba(2,5,24,.6);}
+  .brand .mark{font-family:'Courier New', Courier, monospace;font-weight:800;font-size:21px;letter-spacing:.8px;color:#fff;line-height:1.15;text-transform:uppercase;text-shadow:0 1px 4px rgba(2,5,24,.6);}
   .brand .mark .mark-accent{color:var(--gold);}
   .hamburger-btn{flex-shrink:0;}
   /* Row 2 (full width, always wraps onto its own line): branch/online
-     status + sync/pending status, stacked. Separated from row 1 by a
-     faint divider so the two kinds of information read as distinct
-     groups instead of one crowded block. */
-  .hdr-status-rows{display:flex;flex-direction:column;gap:6px;flex-basis:100%;order:3;padding-top:13px;margin-top:3px;position:relative;}
-  .hdr-status-rows .sub{font-family:'Courier New', Courier, monospace;font-size:15.5px;font-weight:700;color:#fff;letter-spacing:.4px;text-transform:uppercase;text-shadow:0 1px 4px rgba(2,5,24,.55);}
+     status + sync/pending status, stacked. Spacing from row 1 comes
+     from .topband's own row-gap (set above) rather than a margin/
+     padding tuned here — that's what keeps this row from ending up
+     flush against row 1 or the header's bottom edge no matter how the
+     header's own padding changes later. */
+  .hdr-status-rows{display:flex;flex-direction:column;gap:4px;flex-basis:calc(100% - 57px);order:3;position:relative;margin-left:57px;}
+  .hdr-status-rows .sub{font-family:'Courier New', Courier, monospace;font-size:13.5px;font-weight:700;color:#fff;letter-spacing:.4px;text-transform:uppercase;text-shadow:0 1px 4px rgba(2,5,24,.55);}
 
   /* Gold-ringed buttons instead of a plain near-white circle — ties
      the icon buttons back into the same navy/gold identity as the
@@ -180,11 +197,10 @@
   .home-reset-btn:hover{background:rgba(237,239,249,.26);border-color:var(--gold);transform:translateY(-1px);}
   .home-reset-btn span{display:none;}
 
-  /* Nudged down from the header's top gold rule — the icons used to sit
-     flush against it, which read as clipped/cramped; a small top margin
-     gives them breathing room without disturbing the row's vertical
-     centering. */
-  .hdr-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;order:2;margin-top:4px;}
+  /* Vertically centered against row 1 via align-items on .topband —
+     no extra top margin needed here (a hardcoded nudge would drift out
+     of sync the moment the header's own padding changes). */
+  .hdr-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;order:2;}
 
   .notif-wrap{position:relative;}
   .notif-btn{
@@ -294,7 +310,7 @@
      capping out and leaving dead space on wider monitors; side padding
      scales smoothly with viewport width via clamp() so it still looks
      right on phones, laptops, and ultra-wide screens alike. */
-  .main{padding:18px clamp(14px,2.5vw,40px) 40px;width:100%;max-width:100%;margin:0 auto;box-sizing:border-box;}
+  .main{padding:8px clamp(14px,2.5vw,40px) 40px;width:100%;max-width:100%;margin:0 auto;box-sizing:border-box;}
 
   .pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;flex-wrap:wrap;}
   .pagehead h1{font-family:'Poppins',sans-serif;font-size:25px;margin:0;font-weight:700;letter-spacing:-.2px;color:var(--ink);}
@@ -858,7 +874,7 @@
   .conflict-item .ci-actions button:disabled{opacity:.5;cursor:not-allowed;}
 
   /* Branch profiles (hamburger menu + drawer) */
-  .hamburger-btn{background:rgba(237,239,249,.14);border:1.5px solid rgba(255,215,140,.55);color:#EDEFF9;font-size:15px;cursor:pointer;padding:6px 8px;line-height:1;border-radius:8px;transition:background .15s,border-color .15s;flex-shrink:0;box-shadow:0 2px 8px rgba(6,10,36,.3), inset 0 0 0 1px rgba(255,255,255,.04);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);margin-top:4px;display:inline-flex;align-items:center;justify-content:center;}
+  .hamburger-btn{background:rgba(237,239,249,.14);border:1.5px solid rgba(255,215,140,.55);color:#EDEFF9;font-size:15px;cursor:pointer;padding:6px 8px;line-height:1;border-radius:8px;transition:background .15s,border-color .15s;flex-shrink:0;box-shadow:0 2px 8px rgba(6,10,36,.3), inset 0 0 0 1px rgba(255,255,255,.04);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:inline-flex;align-items:center;justify-content:center;}
   .hamburger-btn:hover{background:rgba(237,239,249,.26);border-color:var(--gold);}
   /* Brand mark used as the menu-button icon in place of a plain
      hamburger — the logo PNG (solid shape, white background) is used
@@ -954,8 +970,8 @@
 
   /* ---------- Responsive: tablet ---------- */
   @media(max-width:900px){
-    .topband{padding:calc(14px + var(--safe-t)) 18px 22px;}
-    .main{padding:16px 18px 32px;}
+    .topband{padding:calc(12px + var(--safe-t)) 18px 12px;}
+    .main{padding:8px 18px 32px;}
     .field-grid{grid-template-columns:1fr;}
     .fact-grid{grid-template-columns:repeat(3,1fr);}
 
@@ -991,7 +1007,7 @@
   /* ---------- Responsive: phone ---------- */
   @media(max-width:640px){
 
-    .main{padding:14px 12px calc(28px + var(--safe-b));}
+    .main{padding:8px 12px calc(28px + var(--safe-b));}
     .pagehead{flex-direction:column;align-items:flex-start;gap:6px;}
     .pagehead h1{font-size:21px;}
 
@@ -1005,8 +1021,8 @@
        spacing to actually read comfortably. This block only fires
        under 640px — the desktop rules above are untouched. ---- */
     .topband{
-      padding:calc(14px + var(--safe-t)) 14px 22px;
-      gap:10px 12px;
+      padding:calc(18px + var(--safe-t)) 14px 18px;
+      gap:8px 12px;
     }
     .brand{gap:10px;min-width:0;}
     .brand .mark{font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -1017,9 +1033,9 @@
     }
     .home-reset-btn span{display:none;}
 
-    .hdr-status-rows{gap:8px;padding-top:10px;}
+    .hdr-status-rows{gap:5px;flex-basis:calc(100% - 55px);margin-left:55px;}
     .sub-row{font-size:11px;gap:6px;row-gap:5px;}
-    .hdr-status-rows .sub{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw;}
+    .hdr-status-rows .sub{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50vw;}
     .hdr-status{font-size:11px;}
     .sub-row-sync{row-gap:4px;}
     .sub-row-sync .hdr-status{font-size:10.5px;white-space:normal;overflow-wrap:anywhere;}
@@ -1158,7 +1174,7 @@
 
     <div id="dashPanel" style="display:none;">
       <div id="conflictBanner" style="display:none;"></div>
-      <div class="toolbar" style="margin-top:6px;">
+      <div class="toolbar" style="margin-top:0;">
         <div class="toolbar-extra" id="toolbarExtra">
         <div class="left">
           <button class="btn" onclick="document.getElementById('importAccountsInput').click()" title="Import an STA-style account report (.xls/.xlsx), the kind with grouped sections like &quot;BNEW - OD&quot; instead of a plain status column. Reads Customer, Model, Engine No, Release/Rstr Date, Due Date, Terms, MA &amp; Beg Bal, and turns each section header into that row's Unit/Account status (e.g. section &quot;BNEW - OD&quot; → status &quot;OD - BN&quot;). Existing accounts (matched by name + engine no.) are refreshed with this info; accounts not already on the list are added as new. Outstanding Balance / Date of Last Payment are always reset by this import — Remarks / Date of Audit are never touched."><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><polyline points="5 12 12 5 19 12"/><line x1="4" y1="21" x2="20" y2="21"/></svg> Import Accounts</button>
