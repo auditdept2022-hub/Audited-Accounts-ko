@@ -1045,6 +1045,13 @@
        typing. Top-anchoring keeps the header pinned to the top of the
        screen regardless of keyboard height. */
     #profileOverlay{align-items:flex-start;}
+    /* Preview also top-anchored: it has a live search box right under
+       its header, and bottom-anchoring meant the whole sheet shrinks
+       from the top as fewer results match — sinking the search box
+       further down the screen while typing, right when you need it to
+       stay put. Top-anchoring keeps it fixed regardless of result count. */
+    #previewOverlay{align-items:flex-start;}
+    #previewOverlay .modal{border-radius:0 0 16px 16px;max-height:calc(100dvh - env(safe-area-inset-top) - 10px);}
     #profileOverlay .modal{border-radius:0 0 16px 16px;max-height:calc(100dvh - env(safe-area-inset-top) - 10px);}
     .modal-foot .left{width:100%;margin-right:0;order:2;}
     .modal-foot .left .btn{flex:1;}
