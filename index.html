@@ -3194,9 +3194,10 @@
   // exits straight away, even with a modal open or a branch selected.
   // This wires the History API so back instead undoes one "layer" of the
   // app at a time, same as tapping the X or the Home button:
-  //   1. overlay layer — whichever of the edit/create modal or the
-  //      profile/branch-switch menu is open (they don't nest, so one
-  //      shared layer covers both).
+  //   1. overlay layer — whichever of the edit/create modal, the
+  //      profile/branch-switch menu, the account preview, or a
+  //      notification-detail popup is open (they don't nest, so one
+  //      shared layer covers all of them).
   //   2. branch layer — a branch profile being selected/viewed.
   // Each layer pushes exactly one history entry when it opens, and
   // "consumes" that entry (walks history back by one, without re-running
@@ -3240,6 +3241,7 @@
       if(document.getElementById('overlay').classList.contains('open')) closeModal(true);
       else if(document.getElementById('profileOverlay').classList.contains('open')) closeProfileMenu(true);
       else if(document.getElementById('previewOverlay').classList.contains('open')) closePreviewOverlay_(true);
+      else if(document.getElementById('notifDetailOverlay').classList.contains('open')) closeNotifDetail_(true);
       return;
     }
     if(branchGuardOpen_){
@@ -3407,6 +3409,7 @@
     document.getElementById('notifDetailSyncBtn').style.display = pending ? 'inline-flex' : 'none';
     document.getElementById('notifDetailOverlay').classList.add('open');
     lockBodyScroll();
+    pushGuard_('overlay');
   }
 
   function renderNotifList_(){
@@ -3486,11 +3489,13 @@
 
     document.getElementById('notifDetailOverlay').classList.add('open');
     lockBodyScroll();
+    pushGuard_('overlay');
   }
 
-  function closeNotifDetail_(){
+  function closeNotifDetail_(fromPopstate){
     document.getElementById('notifDetailOverlay').classList.remove('open');
     unlockBodyScroll();
+    if(!fromPopstate) consumeGuard_('overlay');
   }
 
   function toggleNotifPanel_(){
