@@ -1632,13 +1632,49 @@
   (function(){
     const topband = document.querySelector('.topband');
     if(!topband) return;
-    const setToolbarTop = ()=>{
-      document.documentElement.style.setProperty('--toolbar-top', topband.offsetHeight + 'px');
+
+    let lastPx = null;
+    const apply = ()=>{
+      const px = Math.round(topband.getBoundingClientRect().height);
+      if(px === lastPx) return; // no real change — don't touch the DOM/style for nothing
+      lastPx = px;
+      document.documentElement.style.setProperty('--toolbar-top', px + 'px');
     };
-    setToolbarTop();
-    window.addEventListener('resize', setToolbarTop);
-    window.addEventListener('orientationchange', setToolbarTop);
-    if(window.ResizeObserver) new ResizeObserver(setToolbarTop).observe(topband);
+
+    // On mobile, the browser's own address bar collapsing/expanding as
+    // you scroll changes the visual viewport slightly, which can nudge
+    // the header's rendered box by a pixel even though nothing about
+    // its actual content changed. Since ResizeObserver fired on every
+    // one of those micro-changes, --toolbar-top used to get quietly
+    // rewritten mid-scroll — visible as the sticky toolbar creeping a
+    // little toward the header while you scroll, instead of staying
+    // perfectly frozen under it. Fix: while a scroll is actively in
+    // progress, queue the measurement instead of applying it
+    // immediately, and only actually apply once scrolling has settled
+    // (150ms of no scroll events) — so nothing shifts mid-scroll, and
+    // the toolbar still correctly re-locks under the header afterward
+    // if its real height did change (e.g. rotating the device, a
+    // wrapped line of header text).
+    let scrollSettleTimer = null;
+    let pendingWhileScrolling = false;
+    window.addEventListener('scroll', ()=>{
+      pendingWhileScrolling = true;
+      clearTimeout(scrollSettleTimer);
+      scrollSettleTimer = setTimeout(()=>{
+        pendingWhileScrolling = false;
+        apply();
+      }, 150);
+    }, {passive:true});
+
+    const requestApply = ()=>{
+      if(pendingWhileScrolling) return; // scroll-settle handler above will pick it up
+      apply();
+    };
+
+    requestApply();
+    window.addEventListener('resize', requestApply);
+    window.addEventListener('orientationchange', requestApply);
+    if(window.ResizeObserver) new ResizeObserver(requestApply).observe(topband);
   })();
 
   // ---- Grabbable scroll thumb (touch) -------------------------------
