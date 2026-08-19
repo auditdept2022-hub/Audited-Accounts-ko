@@ -310,7 +310,15 @@
      capping out and leaving dead space on wider monitors; side padding
      scales smoothly with viewport width via clamp() so it still looks
      right on phones, laptops, and ultra-wide screens alike. */
-  .main{padding:8px clamp(14px,2.5vw,40px) 40px;width:100%;max-width:100%;margin:0 auto;box-sizing:border-box;}
+  /* padding-top used to be 8px, leaving a small gap between the header
+     and the toolbar while unscrolled. Since the toolbar sticks flush
+     (0 gap) against the header once scrolled (see --toolbar-top above),
+     that 8px gap meant the toolbar visibly snapped/jumped up by 8px the
+     moment you started scrolling — it wasn't continuous movement, but
+     it read as "moving" all the same. Zeroing it out means the toolbar
+     is flush against the header from initial paint too, so there's
+     nothing left to snap: scrolling never changes its position at all. */
+  .main{padding:0 clamp(14px,2.5vw,40px) 40px;width:100%;max-width:100%;margin:0 auto;box-sizing:border-box;}
 
   .pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;flex-wrap:wrap;}
   .pagehead h1{font-family:'Poppins',sans-serif;font-size:25px;margin:0;font-weight:700;letter-spacing:-.2px;color:var(--ink);}
@@ -985,7 +993,7 @@
   /* ---------- Responsive: tablet ---------- */
   @media(max-width:900px){
     .topband{padding:calc(12px + var(--safe-t)) 18px 12px;}
-    .main{padding:8px 18px 32px;}
+    .main{padding:0 18px 32px;}
     .field-grid{grid-template-columns:1fr;}
     .fact-grid{grid-template-columns:repeat(3,1fr);}
 
@@ -1021,7 +1029,7 @@
   /* ---------- Responsive: phone ---------- */
   @media(max-width:640px){
 
-    .main{padding:8px 12px calc(28px + var(--safe-b));}
+    .main{padding:0 12px calc(28px + var(--safe-b));}
     .pagehead{flex-direction:column;align-items:flex-start;gap:6px;}
     .pagehead h1{font-size:21px;}
 
