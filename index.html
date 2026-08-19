@@ -328,10 +328,14 @@
   @media(min-width:901px){
     .toolbar .left{flex-shrink:1;}
     .toolbar .right{flex-shrink:0;}
-    .toolbar-search{width:auto;order:0;flex:1 1 160px;min-width:120px;margin-left:10px;}
-    .toolbar-search .input{max-width:none;width:100%;}
+    /* order:-1 (not 0) — puts search + remarks-breakdown badge FIRST,
+       ahead of .left/.right, instead of last where a full row of
+       buttons could push it past the right edge with nothing left to
+       shrink. */
+    .toolbar-search{width:auto;order:-1;flex:1 1 260px;min-width:150px;max-width:420px;margin-left:0;margin-right:10px;}
+    .toolbar-search .input{max-width:none;width:100%;flex:1 1 auto;min-width:70px;}
   }
-  .remarks-count-badge{flex-shrink:0;display:flex;align-items:center;font-size:12.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);border:1px solid var(--line);border-radius:8px;padding:0 12px;margin-left:8px;white-space:nowrap;cursor:pointer;font-family:inherit;}
+  .remarks-count-badge{flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);border:1px solid var(--line);border-radius:8px;padding:0 10px;margin-left:8px;white-space:nowrap;cursor:pointer;font-family:inherit;min-width:0;}
   .remarks-count-badge:hover{background:#DCE4FC;}
   .remarks-count-badge.rc-active{background:var(--accent);color:#fff;border-color:var(--accent-dark);}
   .rc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px;}
@@ -383,6 +387,10 @@
   .input:focus, select:focus, textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(42,61,154,.12);}
 
   .btn{border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:var(--text);border:1px solid #D7DCF0;transition:transform .08s, opacity .15s, background .15s, box-shadow .15s;font-family:inherit;display:inline-flex;align-items:center;gap:7px;}
+  /* Icon-only toolbar buttons (Export/Preview/Print/Select) — square,
+     centered padding instead of the wider text-button padding, so they
+     take up noticeably less horizontal room in the toolbar. */
+  .btn.icon-only{padding:9px;width:36px;height:36px;justify-content:center;gap:0;flex-shrink:0;}
   .btn .svgicon, .icon-btn .svgicon, .hamburger-btn .svgicon, .hdr-sync-btn .svgicon, .modal-close .svgicon, .home-reset-btn .svgicon, .notif-btn .svgicon{width:14px;height:14px;flex-shrink:0;display:inline-block;vertical-align:middle;}
   .icon-btn{display:inline-flex;}
   .modal-close{display:inline-flex;align-items:center;justify-content:center;}
@@ -1141,10 +1149,10 @@
           <button class="btn" onclick="document.getElementById('importRemarksInput').click()" title="Import CSV or Excel (.xls/.xlsx) files. Matches customers by name (and engine no. when the file has one). Takes ONLY the customer name and a Remarks/Remarks column and adds each one as a new line directly into Old Remarks (no date stamp). The current Remarks and Date of Audit are never touched. Any balance columns in the file are ignored. Existing customers only; unmatched rows are skipped, never added."><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><polyline points="5 12 12 5 19 12"/><line x1="4" y1="21" x2="20" y2="21"/></svg> Import Remarks</button>
           <input type="file" id="importRemarksInput" accept=".csv,.xls,.xlsx" multiple style="display:none">
           <span id="importStatus" class="import-status"></span>
-          <button class="btn" onclick="exportCSV()" title="Export all customers to an Excel (.xlsx) file, with columns sized to fit">⇩ Export</button>
-          <button class="btn" onclick="openPreviewOverlay_()" title="See every customer on this branch in one scannable list, sorted so those with no current remarks show first"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview</button>
-          <button class="btn" onclick="printCustomers()" title="Print the customer list currently shown for this branch"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button>
-          <button class="btn" id="selectModeBtn" onclick="toggleSelectMode_()" title="Select accounts to bulk-delete"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Select</button>
+          <button class="btn icon-only" onclick="exportCSV()" title="Export all customers to an Excel (.xlsx) file, with columns sized to fit"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+          <button class="btn icon-only" onclick="openPreviewOverlay_()" title="Preview — see every customer on this branch in one scannable list, sorted so those with no current remarks show first"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          <button class="btn icon-only" onclick="printCustomers()" title="Print the customer list currently shown for this branch"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>
+          <button class="btn icon-only" id="selectModeBtn" onclick="toggleSelectMode_()" title="Select accounts to bulk-delete"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
         </div>
         <div class="right">
           <span class="toolbar-divider"></span>
@@ -1198,7 +1206,7 @@
         <div class="toolbar-search">
           <input class="input" id="searchBox" placeholder="Search customer, model, engine no...">
           <div class="status-switch" id="remarksCountSwitch">
-            <button type="button" class="remarks-count-badge" id="remarksCountBadge" onclick="toggleRemarksCountMenu_(event)" title="Remarks breakdown by status">0 / 0 with remarks</button>
+            <button type="button" class="remarks-count-badge" id="remarksCountBadge" onclick="toggleRemarksCountMenu_(event)" title="Remarks breakdown by status — N with remarks / total customers">0/0</button>
             <div class="status-menu" id="remarksCountMenu">
               <div class="status-menu-actions">
                 <span>By status</span>
@@ -1646,8 +1654,10 @@
   function toggleSelectMode_(){
     selectModeOn_ = !selectModeOn_;
     document.querySelector('.card').classList.toggle('select-mode', selectModeOn_);
-    document.getElementById('selectModeBtn').classList.toggle('active', selectModeOn_);
-    document.getElementById('selectModeBtn').innerHTML = selectModeOn_ ? '<svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Cancel select' : '<svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Select';
+    const selBtn = document.getElementById('selectModeBtn');
+    selBtn.classList.toggle('active', selectModeOn_);
+    selBtn.title = selectModeOn_ ? 'Cancel select' : 'Select accounts to bulk-delete';
+    selBtn.innerHTML = selectModeOn_ ? '<svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' : '<svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     if(!selectModeOn_) clearSelection_();
   }
 
@@ -5269,7 +5279,7 @@
       if(hasRemark) b.withRemarks++;
     }
 
-    badge.textContent = withRemarks + ' / ' + total + ' with remarks';
+    badge.textContent = withRemarks + '/' + total;
     badge.classList.toggle('rc-active', selectedStatuses_.size > 0 || !!remarkFilterValue_);
 
     order.sort((a, b) => tally.get(a).label.localeCompare(tally.get(b).label));
@@ -5431,7 +5441,7 @@
     const q = document.getElementById('searchBox').value.trim().toLowerCase();
     const remarkF = remarkFilterValue_;
 
-    return customers.filter(c=>{
+    const filtered = customers.filter(c=>{
       if(c._pendingDelete) return false; // queued for deletion, hide immediately
       if(q){
         // Customer name: prefix match only — starts typing "L" and only
@@ -5460,6 +5470,24 @@
       if(remarkF === 'done' && !hasOldRemark) return false;
       return true;
     });
+
+    // Group by Unit/Account status first (so customers sharing a status
+    // always sit together as one block), then alphabetical by customer
+    // name within each status group — instead of one flat alphabetical
+    // list where customers of different statuses were interleaved.
+    // Blank/missing status sorts last, after every named status.
+    filtered.sort((a, b) => {
+      const sa = str_(a.unitAccountStatus).trim();
+      const sb = str_(b.unitAccountStatus).trim();
+      if(sa !== sb){
+        if(!sa) return 1;
+        if(!sb) return -1;
+        return sa.localeCompare(sb);
+      }
+      return str_(a.customer).localeCompare(str_(b.customer));
+    });
+
+    return filtered;
   }
 
 
