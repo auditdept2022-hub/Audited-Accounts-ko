@@ -1027,32 +1027,30 @@
     .fact-grid{grid-template-columns:repeat(2,1fr);gap:12px 14px;}
     .fact .v{font-size:12.5px;white-space:normal;overflow-wrap:anywhere;}
 
-    /* Full-width, bottom-sheet style modal: easier to reach one-handed
-       and avoids the on-screen keyboard fighting a centered dialog. */
-    .overlay{padding:0;align-items:flex-end;}
-    .modal{max-width:100%;border-radius:16px 16px 0 0;max-height:calc(100dvh - 24px);}
+    /* Full-screen modals on phone: every popup (profile drawer, preview,
+       add/edit customer, etc.) takes the entire viewport instead of a
+       floating card or bottom sheet — no rounded corners, no backdrop
+       visible around it, easiest to read/tap with one hand and avoids
+       any "where did it go" confusion from a partial-height sheet. */
+    .overlay{padding:0;align-items:stretch;justify-content:stretch;}
+    .modal{
+      max-width:100%;width:100%;
+      height:100dvh;max-height:100dvh;
+      border-radius:0;margin:0;
+    }
     .modal.profile-modal{max-width:100%;}
-    .modal-head{padding:16px 18px 24px;}
+    .modal.preview-modal{max-width:100%;}
+    .modal-head{padding:calc(16px + var(--safe-t)) 18px 24px;}
     .modal-body{padding:18px;}
     .modal-foot{padding:14px 18px calc(14px + var(--safe-b));flex-wrap:wrap;}
+    /* The preview list's own internal scroll cap can grow now that the
+       whole modal fills the screen — let it use the remaining body
+       height instead of a fixed 60vh. */
+    .preview-list{max-height:none;}
 
-    /* Branch Profiles specifically is anchored to the TOP instead — it
-       has a search box right under its header, and bottom-anchoring
-       meant that whenever the on-screen keyboard opened to type a
-       search, the browser's shrinking layout viewport pushed the whole
-       (bottom-pinned) sheet down with it, shoving the title/search bar
-       out of view and making it look like the panel "sank" while
-       typing. Top-anchoring keeps the header pinned to the top of the
-       screen regardless of keyboard height. */
-    #profileOverlay{align-items:flex-start;}
-    /* Preview also top-anchored: it has a live search box right under
-       its header, and bottom-anchoring meant the whole sheet shrinks
-       from the top as fewer results match — sinking the search box
-       further down the screen while typing, right when you need it to
-       stay put. Top-anchoring keeps it fixed regardless of result count. */
-    #previewOverlay{align-items:flex-start;}
-    #previewOverlay .modal{border-radius:0 0 16px 16px;max-height:calc(100dvh - env(safe-area-inset-top) - 10px);}
-    #profileOverlay .modal{border-radius:0 0 16px 16px;max-height:calc(100dvh - env(safe-area-inset-top) - 10px);}
+    #profileOverlay{align-items:stretch;}
+    #previewOverlay{align-items:stretch;}
+    #previewOverlay .modal, #profileOverlay .modal{border-radius:0;}
     .modal-foot .left{width:100%;margin-right:0;order:2;}
     .modal-foot .left .btn{flex:1;}
     .modal-foot .right{width:100%;order:1;}
