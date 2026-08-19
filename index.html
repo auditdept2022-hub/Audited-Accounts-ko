@@ -333,8 +333,22 @@
      long customer list the only way to move around is a slow drag/flick.
      This gives a wide, always-visible track along the right edge that
      can be grabbed directly, or tapped anywhere to jump straight there —
-     same idea as a native scrollbar thumb, just sized for a finger. */
-  .scrub-track{display:none;position:fixed;top:0;right:0;bottom:0;width:30px;z-index:45;touch-action:none;}
+     same idea as a native scrollbar thumb, just sized for a finger.
+
+     top is pinned to --toolbar-top (the same live, JS-measured header
+     height the sticky .toolbar rule above reads) instead of 0. The track
+     used to start at the very top of the viewport, so it ran straight
+     through the sticky header — the thumb was reachable up inside the
+     header band itself, which looked like it belonged to the header
+     rather than to the customer list below it. Starting the track right
+     where the header ends keeps it confined to the actual scrollable
+     content area, and it stays correct automatically as the header's
+     height changes (safe-area inset, wrapped status text, rotation,
+     etc.) since --toolbar-top is already kept in sync for exactly that
+     reason. track.clientHeight — used by the layout()/scrollToTrackY()
+     JS below to size and position the thumb — reflects this shorter
+     height automatically, so no JS changes were needed. */
+  .scrub-track{display:none;position:fixed;top:var(--toolbar-top,0px);right:0;bottom:0;width:30px;z-index:45;touch-action:none;}
   @media (hover:none), (pointer:coarse){
     .scrub-track.on{display:block;}
   }
