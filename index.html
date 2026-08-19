@@ -87,7 +87,7 @@
        and the icon buttons/layout untouched — just eased how dark it
        gets. */
     background:radial-gradient(ellipse 60% 100% at 50% 50%, rgba(10,18,50,.3) 0%, rgba(10,18,50,0) 70%), linear-gradient(100deg, #2A4BB8 0%, #1E3480 50%, #16245C 100%);
-    color:#EDEFF9;padding:calc(16px + var(--safe-t)) 26px 18px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px;
+    color:#EDEFF9;padding:calc(16px + var(--safe-t)) 26px 24px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px;
     box-shadow:0 2px 10px rgba(10,23,72,.25);
     overflow:hidden;
   }
@@ -277,7 +277,7 @@
   .hdr-status{font-size:12.5px;color:#EDEFF9;white-space:nowrap;text-shadow:0 1px 3px rgba(2,5,24,.5);}
   .hdr-sync-btn{background:none;border:none;color:#D3D9F7;font-size:14px;cursor:pointer;padding:0 2px;line-height:1;transition:color .15s,transform .15s;text-shadow:0 1px 3px rgba(2,5,24,.5);}
   .hdr-sync-btn:hover{color:#fff;transform:rotate(90deg);}
-  .sub-row-sync{opacity:.92;margin-top:3px;}
+  .sub-row-sync{opacity:.92;margin-top:3px;margin-bottom:2px;}
   .sub-row-sync .hdr-status{font-size:11.5px;}
   .sub-row-sync .hdr-sync-btn{font-size:12.5px;}
   #pendingWrap{font-size:12.5px;color:#D3D9F7;white-space:nowrap;}
@@ -954,7 +954,7 @@
 
   /* ---------- Responsive: tablet ---------- */
   @media(max-width:900px){
-    .topband{padding:calc(14px + var(--safe-t)) 18px 16px;}
+    .topband{padding:calc(14px + var(--safe-t)) 18px 22px;}
     .main{padding:16px 18px 32px;}
     .field-grid{grid-template-columns:1fr;}
     .fact-grid{grid-template-columns:repeat(3,1fr);}
@@ -1005,7 +1005,7 @@
        spacing to actually read comfortably. This block only fires
        under 640px — the desktop rules above are untouched. ---- */
     .topband{
-      padding:calc(14px + var(--safe-t)) 14px 14px;
+      padding:calc(14px + var(--safe-t)) 14px 22px;
       gap:10px 12px;
     }
     .brand{gap:10px;min-width:0;}
@@ -3032,7 +3032,7 @@
       for(const item of chunk){
         try{
           const res = await apiCall(singleAction, toSinglePayload(item));
-          const data = await res.json();
+          const data = await parseJsonResponse_(res);
           if(data.error || !data.ok) throw new Error(data.error || 'unexpected response');
           succeeded++;
         }catch(err){
@@ -3049,7 +3049,7 @@
         const payload = {};
         payload[batchKey] = chunk.map(toBatchItem);
         const res = await apiCall(batchAction, payload);
-        const data = await res.json();
+        const data = await parseJsonResponse_(res);
         if(data.error) {
           console.warn(`${batchAction} chunk of ${chunk.length} returned an error, retrying one row at a time:`, data.error);
           await fallbackChunk(chunk);
@@ -3136,12 +3136,35 @@
     return fetch(url, { cache: 'no-store' });
   }
 
+  // Turns a fetch Response into parsed JSON, but reads it as text first
+  // rather than calling res.json() directly. A misconfigured/stale Apps
+  // Script deployment (wrong access level, no new deployment version
+  // published, or an uncaught server-side exception) returns an HTML
+  // error/login page instead of JSON — parsing that raw throws a cryptic
+  // "Unexpected token '<'" error. Detect that case here and surface a
+  // message that actually points at the fix, in every caller at once.
+  async function parseJsonResponse_(res){
+    const raw = await res.text();
+    try{
+      return JSON.parse(raw);
+    }catch(parseErr){
+      const looksLikeHtml = /^\s*<(!DOCTYPE|html)/i.test(raw);
+      throw new Error(
+        looksLikeHtml
+          ? 'Backend returned a web page instead of data (HTTP ' + res.status + '). ' +
+            'This usually means the Apps Script deployment needs a fresh "New version" published, ' +
+            'or its access is not set to "Anyone".'
+          : 'Backend returned an unreadable response (HTTP ' + res.status + ').'
+      );
+    }
+  }
+
   // Runs one apiCall and parses its JSON, throwing on either a network
   // failure or a {error:...} response, so callers have one place to
   // catch "this didn't actually save."
   async function apiCallJson_(action, payload){
     const res = await apiCall(action, payload);
-    const data = await res.json();
+    const data = await parseJsonResponse_(res);
     if(data.error) throw new Error(data.error);
     return data;
   }
@@ -4470,7 +4493,7 @@
     let listErr = null;
     try{
       const res = await fetch(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + '&_=' + Date.now(), { cache: 'no-store' });
-      const data = await res.json();
+      const data = await parseJsonResponse_(res);
       if(data.error) throw new Error(data.error);
       serverList = data.customers || [];
     }catch(e){ listErr = e; }
@@ -4905,7 +4928,7 @@
       // serve back a stale cached response for this request — including
       // an old failed/404 response from before a deployment was fixed.
       const res = await fetch(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + '&_=' + Date.now(), { cache: 'no-store' });
-      const data = await res.json();
+      const data = await parseJsonResponse_(res);
       if(data.error) throw new Error(data.error);
       const fresh = data.customers || [];
 
