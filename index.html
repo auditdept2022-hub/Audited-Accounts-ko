@@ -1013,7 +1013,25 @@
   .preview-toolbar .input{flex:1;min-width:180px;}
   .preview-toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none;}
   .preview-toggle input{accent-color:var(--accent);width:14px;height:14px;cursor:pointer;}
+  .preview-list-wrap{position:relative;}
   .preview-list{display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow-y:auto;padding-right:2px;}
+  /* Grabbable scroll thumb for the preview list — same idea as the
+     page-wide .scrub-track (see its comment further down), scoped to
+     this modal's own internal scroll instead of the page. Lets you
+     press-and-hold and drag straight through a long customer list, or
+     tap anywhere on the track to jump there, instead of only being able
+     to flick/scroll a few rows at a time. Uses pointer events so it
+     works with a held mouse-drag on desktop as well as a finger on
+     touch — unlike the page's scrub-track (touch-only, since desktop
+     already has a normal page scrollbar to grab), this list sits inside
+     a modal with no native scrollbar of its own worth grabbing at this
+     width, so it's shown for every input type once the list is tall
+     enough to actually scroll. */
+  .preview-scrub-track{display:none;position:absolute;top:0;right:0;bottom:0;width:24px;z-index:5;touch-action:none;}
+  .preview-scrub-track.on{display:block;}
+  .preview-scrub-thumb{position:absolute;left:50%;top:0;transform:translateX(-50%);width:6px;border-radius:5px;background:linear-gradient(180deg,var(--accent),var(--ink));opacity:.45;box-shadow:0 1px 3px rgba(16,22,60,.35);transition:opacity .15s ease,width .15s ease;cursor:grab;}
+  .preview-scrub-track.dragging .preview-scrub-thumb{opacity:.95;width:11px;cursor:grabbing;}
+  .preview-list-wrap.has-scrub .preview-list{padding-right:24px;}
   .preview-empty{color:var(--muted);font-size:12.5px;padding:20px 2px;text-align:center;}
   .preview-row{
     display:flex;align-items:center;gap:12px;padding:9px 12px;
@@ -1023,6 +1041,19 @@
   .preview-row:hover{background:#F7F8FD;border-color:#C9D1EE;}
   .preview-row.pr-missing{background:#FDF3F3;border-color:#F3D3D3;}
   .preview-row.pr-missing:hover{background:#FBE9E9;}
+  /* Same customer-color highlight used on the main cards (.rec.marked-*)
+     — shown here too so a color you picked on a customer is visible at a
+     glance in the preview list, not just on the card. Takes priority
+     over the plain "no remarks yet" red below: a colored customer keeps
+     its color even if it also has no remarks. */
+  .preview-row.pr-marked-green{background:#E9F8F0;border-color:#9EDBB9;}
+  .preview-row.pr-marked-green:hover{background:#DDF3E7;}
+  .preview-row.pr-marked-yellow{background:#FFF8DE;border-color:#EBCE6E;}
+  .preview-row.pr-marked-yellow:hover{background:#FCF1C4;}
+  .preview-row.pr-marked-red{background:#FCEAE8;border-color:#EDA79F;}
+  .preview-row.pr-marked-red:hover{background:#F9DBD8;}
+  .preview-row.pr-marked-sky{background:#E7F5FC;border-color:#9BCDE9;}
+  .preview-row.pr-marked-sky:hover{background:#D9EDF9;}
   .pr-num{flex-shrink:0;width:22px;font-size:11px;color:var(--muted-2);text-align:right;font-family:'Inter',sans-serif;}
   .pr-main{flex:1;min-width:0;}
   .pr-name{font-weight:700;font-size:13px;color:var(--text);overflow-wrap:anywhere;line-height:1.3;}
@@ -1522,7 +1553,10 @@
           No current remarks only
         </label>
       </div>
-      <div id="previewList" class="preview-list"></div>
+      <div class="preview-list-wrap">
+        <div id="previewList" class="preview-list"></div>
+        <div class="preview-scrub-track" id="previewScrubTrack" aria-hidden="true"><div class="preview-scrub-thumb" id="previewScrubThumb"></div></div>
+      </div>
     </div>
   </div>
 </div>
@@ -1585,7 +1619,7 @@
   // and saved but not re-deployed via Deploy > Manage deployments >
   // pencil icon > New version — this shows a small warning banner
   // instead of silently running the dashboard against old backend code.
-  const APP_VERSION = '2026-08-20.4';
+  const APP_VERSION = '2026-08-20.6';
   let versionBannerShown_ = false;
   function checkVersionSync_(backendVersion){
     if(!backendVersion || backendVersion === APP_VERSION || versionBannerShown_) return;
@@ -1888,6 +1922,105 @@
     if(window.ResizeObserver) new ResizeObserver(measure).observe(document.body);
     measure();
   })();
+
+  // ---- Grabbable scroll thumb, generic (for scrollable areas INSIDE a
+  // modal, as opposed to the page-wide one above) ---------------------
+  // Same press-and-hold-to-drag idea as the page's scrub-track, but
+  // scoped to a single scrollable element (e.g. the Customer preview
+  // list) instead of the whole page. Uses pointer events rather than
+  // touch-only, so a held mouse-drag on desktop works the same as a
+  // finger on touch — this list has no normal page scrollbar of its own
+  // to fall back on, so it's shown for every input type once there's
+  // enough content to actually scroll. Returns {measure} so the caller
+  // can re-check after content changes (search/filter re-render).
+  function initInnerScrub_(scrollEl, track, thumb, wrapEl){
+    if(!scrollEl || !track || !thumb) return { measure(){} };
+    const MIN_THUMB = 28;
+    let scrollable = 0;
+    let dragging = false;
+    let dragStartY = 0, dragStartScrollTop = 0;
+
+    function layout(){
+      const trackH = track.clientHeight;
+      if(trackH <= 0) return;
+      const thumbH = Math.max(MIN_THUMB, trackH * (scrollEl.clientHeight / (scrollable + scrollEl.clientHeight)));
+      const maxThumbTop = trackH - thumbH;
+      const pos = scrollable > 0 ? (scrollEl.scrollTop / scrollable) * maxThumbTop : 0;
+      thumb.style.height = thumbH + 'px';
+      thumb.style.top = Math.min(maxThumbTop, Math.max(0, pos)) + 'px';
+    }
+
+    function measure(){
+      scrollable = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+      const on = scrollable > 24;
+      track.classList.toggle('on', on);
+      if(wrapEl) wrapEl.classList.toggle('has-scrub', on);
+      layout();
+    }
+
+    function scrollToTrackY(clientY){
+      const trackH = track.clientHeight;
+      const thumbH = thumb.offsetHeight;
+      const maxThumbTop = trackH - thumbH;
+      if(maxThumbTop <= 0) return;
+      const targetThumbTop = Math.min(maxThumbTop, Math.max(0, clientY - thumbH / 2));
+      scrollEl.scrollTop = (targetThumbTop / maxThumbTop) * scrollable;
+      layout();
+    }
+
+    track.addEventListener('pointerdown', (e)=>{
+      if(scrollable <= 0) return;
+      dragging = true;
+      track.classList.add('dragging');
+      try{ track.setPointerCapture(e.pointerId); }catch(err){}
+      if(e.target !== thumb){
+        // Clicked/tapped empty track — jump there immediately, then
+        // keep tracking the pointer from that new position.
+        scrollToTrackY(e.clientY - track.getBoundingClientRect().top);
+      }
+      dragStartY = e.clientY;
+      dragStartScrollTop = scrollEl.scrollTop;
+      e.preventDefault();
+    });
+
+    track.addEventListener('pointermove', (e)=>{
+      if(!dragging || scrollable <= 0) return;
+      const trackH = track.clientHeight;
+      const thumbH = thumb.offsetHeight;
+      const maxThumbTop = trackH - thumbH;
+      if(maxThumbTop <= 0) return;
+      const deltaScroll = ((e.clientY - dragStartY) / maxThumbTop) * scrollable;
+      scrollEl.scrollTop = Math.min(scrollable, Math.max(0, dragStartScrollTop + deltaScroll));
+      layout();
+      e.preventDefault();
+    });
+
+    function endDrag(e){
+      if(!dragging) return;
+      dragging = false;
+      track.classList.remove('dragging');
+      try{ track.releasePointerCapture(e.pointerId); }catch(err){}
+    }
+    track.addEventListener('pointerup', endDrag);
+    track.addEventListener('pointercancel', endDrag);
+
+    let scrollRaf_ = null;
+    scrollEl.addEventListener('scroll', ()=>{
+      if(dragging || scrollRaf_) return;
+      scrollRaf_ = requestAnimationFrame(()=>{ scrollRaf_ = null; layout(); });
+    }, {passive:true});
+    if(window.ResizeObserver) new ResizeObserver(measure).observe(scrollEl);
+
+    return { measure };
+  }
+
+  const previewScrub_ = initInnerScrub_(
+    document.getElementById('previewList'),
+    document.getElementById('previewScrubTrack'),
+    document.getElementById('previewScrubThumb'),
+    document.querySelector('.preview-list-wrap')
+  );
+  function layoutPreviewScrub_(){ previewScrub_.measure(); }
 
   function openPositionedMenu(menuEl, btnEl){
     menuEl.classList.add('open');
@@ -2949,8 +3082,10 @@
       item => ({ row: item.row, historyAppend: item.historyAppend, customer: item.customer }),
       'appendRemarkHistoryRow', item => ({ row: item.row, entry: item.historyAppend }),
       total, 0,
-      item => item.customer
+      item => item.customer,
+      true
     );
+    await finalizeImportFormatting_();
 
     const updated = updateResult.succeeded, failed = updateResult.failed;
     toast(`Import complete: ${updated} updated${failed ? ', ' + failed + ' failed' : ''}${unmatched ? ', ' + unmatched + ' skipped (no match)' : ''}.`);
@@ -3270,15 +3405,18 @@
       item => item,
       'createCustomer', item => ({ fields: item, skipDefaultRemarks: true }),
       total, 0,
-      item => item.customer || '(blank name)'
+      item => item.customer || '(blank name)',
+      true
     );
     const updateResult = await runBatched_(
       toUpdate, 'batchUpdateCustomer', 'updates',
       item => ({ row: item.row, fields: item.fields }),
       'updateCustomer', item => ({ row: item.row, fields: item.fields }),
       total, createResult.done,
-      item => item.fields.customer
+      item => item.fields.customer,
+      true
     );
+    await finalizeImportFormatting_();
 
     const created = createResult.succeeded, updated = updateResult.succeeded;
     const failed = createResult.failed + updateResult.failed;
@@ -3309,6 +3447,16 @@
     return out;
   }
 
+  // Called once after a bulk import's batch writes are all done, to run
+  // the sheet-wide column auto-resize that each chunk skipped (see
+  // deferWidth in runBatched_ / finalizeFormatting in Code.gs). Best
+  // effort — a failure here is just cosmetic (columns stay whatever
+  // width they were), so it never blocks the "import complete" toast.
+  async function finalizeImportFormatting_(){
+    try{ await apiCallJson_('finalizeFormatting', {}); }
+    catch(err){ console.warn('finalizeFormatting failed (non-fatal):', err); }
+  }
+
   // Apps Script Web Apps enforce a hard ceiling on total request-URL length
   // (roughly 8KB, enforced by Google's front end before your script code
   // even runs) — and since every write here goes out as a GET with the
@@ -3332,6 +3480,14 @@
   // ceiling to leave room for the action/sheet/timestamp prefix and for
   // multi-byte characters (₱, etc.) to encode larger than 1 char each.
   const MAX_CHUNK_ENCODED_CHARS = 5500;
+
+  // PERFORMANCE: bulk imports pass deferWidth:true to runBatched_ (see
+  // handleImportAccountsFiles / handleImportRemarksFiles above), which
+  // skips the sheet-wide column auto-resize after every chunk and instead
+  // calls finalizeImportFormatting_() once at the end. See the matching
+  // Code.gs changelog entry for why — that per-chunk resize scaled with
+  // total sheet size and was the main cause of both the import slowness
+  // and the occasional handful of "failed" rows on large imports.
 
   function chunkByEncodedSize_(items, toBatchItem, maxEncodedChars){
     const chunks = [];
@@ -3377,10 +3533,22 @@
   //   - A per-row fallback failure (chunk-level error, retried one row at a
   //     time) is caught directly here, and named via getName(item) when
   //     available.
-  async function runBatched_(items, batchAction, batchKey, toBatchItem, singleAction, toSinglePayload, overallTotal, doneSoFar, getName){
+  async function runBatched_(items, batchAction, batchKey, toBatchItem, singleAction, toSinglePayload, overallTotal, doneSoFar, getName, deferWidth){
     if(!items.length) return { succeeded: 0, failed: 0, done: doneSoFar, failedNames: [] };
 
-    const CONCURRENCY = 3;
+    // PERFORMANCE: this used to be 3. Every batch write for one import
+    // targets the SAME branch, and the backend serializes all writes to a
+    // branch through withBranchLock_ (see Code.gs) — so firing chunks
+    // concurrently never actually ran them in parallel; two of every three
+    // requests just sat on the backend polling for the branch lock. That
+    // wasted an Apps Script execution slot per waiting chunk and, on a slow
+    // chunk (a cold Apps Script start, or a busy branch with another user
+    // saving at the same time), could push a queued chunk past the branch
+    // lock's wait deadline and fail it — the "occasionally failed" part of
+    // large imports. Sequential (1) gets identical real throughput with
+    // zero lock contention and zero chance of a lock-wait failure from an
+    // import's own chunks competing with each other.
+    const CONCURRENCY = 1;
     const chunks = chunkByEncodedSize_(items, toBatchItem, MAX_CHUNK_ENCODED_CHARS);
     let succeeded = 0, failed = 0, done = doneSoFar;
     const failedNames = [];
@@ -3398,7 +3566,8 @@
           succeeded++;
         }catch(err){
           failed++;
-          failedNames.push((getName && getName(item)) || '(unknown)');
+          const label = (getName && getName(item)) || '(unknown)';
+          failedNames.push(err && err.message ? `${label} — ${err.message}` : label);
           console.error(`${singleAction} failed for row`, item, err);
         }
         done++;
@@ -3410,6 +3579,7 @@
       try{
         const payload = {};
         payload[batchKey] = chunk.map(toBatchItem);
+        if(deferWidth) payload.deferWidth = true;
         const res = await apiCall(batchAction, payload);
         const data = await parseJsonResponse_(res);
         if(data.error) {
@@ -4028,6 +4198,11 @@
     if(onlyBox) onlyBox.checked = false;
     renderPreviewList_();
     document.getElementById('previewOverlay').classList.add('open');
+    // Re-measure after the overlay is actually visible — render() ran
+    // this once already, but the modal (and its clientHeight) was still
+    // display:none at that point, so the thumb needs one more layout
+    // pass now that real dimensions exist.
+    layoutPreviewScrub_();
     lockBodyScroll();
     pushGuard_('overlay');
   }
@@ -4086,6 +4261,7 @@
 
     if(!rows.length){
       listEl.innerHTML = '<div class="preview-empty">No customers match.</div>';
+      layoutPreviewScrub_();
       return;
     }
 
@@ -4093,7 +4269,12 @@
       const hasRemark = c.remarks && str_(c.remarks).toUpperCase() !== 'NO REMARKS';
       const status = str_(c.unitAccountStatus).trim() || '(No status)';
       const remarkText = hasRemark ? str_(c.remarks) : 'No remarks';
-      return '<div class="preview-row' + (hasRemark ? '' : ' pr-missing') + '" data-row="' + escapeHtml(String(c.row)) + '">' +
+      // Priority: the color picked on the customer (marked-*) wins over
+      // the plain "no remarks yet" red, which only shows when no color
+      // was chosen; a customer with neither just stays white/default.
+      const mark = c.marker || '';
+      const rowClass = mark ? ' pr-marked-' + mark : (hasRemark ? '' : ' pr-missing');
+      return '<div class="preview-row' + rowClass + '" data-row="' + escapeHtml(String(c.row)) + '">' +
         '<span class="pr-num">' + (i + 1) + '</span>' +
         '<div class="pr-main">' +
           '<div class="pr-name">' + escapeHtml(str_(c.customer)) + '</div>' +
@@ -4102,6 +4283,7 @@
         '<div class="pr-remark' + (hasRemark ? '' : ' pr-none') + '">' + escapeHtml(remarkText) + '</div>' +
       '</div>';
     }).join('');
+    layoutPreviewScrub_();
   }
 
   document.getElementById('previewList').addEventListener('click', (e) => {
