@@ -656,6 +656,24 @@
   .mark-popover{position:fixed;z-index:200;display:none;flex-direction:column;gap:1px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-md);padding:6px;min-width:172px;}
   .mark-popover.open{display:flex;}
 
+  /* Colored-choice dropdown used for "select" type FIELDS (Unit status,
+     Payment mode, ...). Mirrors .mark-popover's positioning/behavior but
+     lists arbitrary {value,color} option pills instead of fixed marker
+     colors — see SELECT_OPTIONS / buildFieldGrid / openSelectPopoverFor_. */
+  .fc-select-btn{border:none;background:transparent;padding:0;margin:0;width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;font:inherit;touch-action:manipulation;}
+  .fc-select-btn:focus{outline:none;}
+  .select-pill{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;border:1px solid var(--line);color:var(--muted);background:#F4F6FC;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .select-pill.placeholder{font-weight:600;color:var(--muted-2);font-style:italic;}
+  .fc-select-caret{width:14px;height:14px;flex-shrink:0;color:var(--muted-2);}
+  .select-popover{position:fixed;z-index:210;display:none;flex-direction:column;gap:1px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-md);padding:6px;min-width:190px;max-width:min(260px,calc(100vw - 16px));max-height:min(320px,calc(100vh - 24px));overflow-y:auto;}
+  .select-popover.open{display:flex;}
+  .select-option{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;border:none;background:transparent;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);text-align:left;width:100%;touch-action:manipulation;}
+  .select-option:hover{background:#F1F3FB;}
+  .select-option .select-pill{pointer-events:none;}
+  .select-option .check{opacity:0;color:var(--accent);font-weight:800;}
+  .select-option.active .check{opacity:1;}
+  .select-option.clear{color:var(--muted);}
+
   /* ---- View mode switch (Full details / Compact / Names only) ---- */
   .view-switch{position:relative;display:flex;}
   #viewModeBtn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -722,11 +740,21 @@
   /* Compact: hide the remarks block, keep the fact grid */
   .rec-list.view-compact .rec-remarks{display:none;}
 
-  /* Minimal: name + status badge only */
+  /* Minimal: name + status badge only — tightened up since there's no
+     fact-grid/remarks content below to justify the fuller padding the
+     other view modes use. The quick-info boxes (last payment/
+     outstanding) already draw their own border/background, so the
+     outer .rec-right wrapper is stripped down to nothing here instead
+     of adding a second layer of padding around them. */
   .rec-list.view-minimal .fact-grid,
   .rec-list.view-minimal .rec-remarks{display:none;}
-  .rec-list.view-minimal .rec{padding-top:12px;padding-bottom:12px;}
+  .rec-list.view-minimal{gap:4px;}
+  .rec-list.view-minimal .rec{padding-top:6px;padding-bottom:6px;}
   .rec-list.view-minimal .rec-top{margin-bottom:0;padding-bottom:0;border-bottom:none;}
+  .rec-list.view-minimal .rec-id{padding:5px 8px;}
+  .rec-list.view-minimal .rec-right{padding:0;border:none;background:none;}
+  .rec-list.view-minimal .quick-info{gap:6px;}
+  .rec-list.view-minimal .quick-info .qi-box{padding:2px 6px;min-width:84px;}
 
   /* ---- Multi-select / bulk delete ---- */
   .bulk-bar{display:flex;align-items:center;gap:14px;padding:11px 18px;border-bottom:1px solid var(--line);background:#F8F9FD;font-size:12.5px;color:var(--text);flex-wrap:wrap;border-radius:var(--radius) var(--radius) 0 0;}
@@ -846,6 +874,12 @@
      layout, while keeping the same navy/gold palette as the rest of the
      app. */
   .field-card-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+  /* Status group (Unit/Account status, Unit status, Payment mode): all
+     three fields side by side on one line instead of 2+1. auto-fit with
+     a minmax floor means it degrades on its own on narrower screens —
+     3 across when there's room, dropping to 2 (then 1) on phones —
+     without needing separate breakpoint rules for it. */
+  .field-card-grid.grid-auto3{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));}
   .field-card{border:1px solid var(--line);border-radius:11px;padding:9px 13px;background:#fff;display:flex;flex-direction:column;gap:4px;min-height:52px;justify-content:center;transition:border-color .15s, box-shadow .15s, background .15s;}
   .field-card.span2{grid-column:1 / -1;}
   .field-card.locked{background:#FAFBFE;}
@@ -895,6 +929,19 @@
   .history-hint code{background:#EEF0F9;padding:1px 5px;border-radius:4px;}
   .draft-status{font-size:11px;color:#9a6b00;background:#FFF6E0;border:1px solid #F3DFA0;border-radius:6px;padding:6px 10px;margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
   .draft-status button{background:none;border:none;color:#9a6b00;text-decoration:underline;cursor:pointer;font-size:11px;padding:0;}
+
+  /* Modal-head indicator reflecting the auto-save state of whatever's
+     currently open — see autoSaveField_ / setFieldSyncStatus_. Sits under
+     the title so it's visible without competing with it. */
+  .field-sync-status{display:none;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.72);margin-top:4px;}
+  .field-sync-status.show{display:flex;}
+  .field-sync-status .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;}
+  .field-sync-status.saving{color:#FFD98A;}
+  .field-sync-status.saving .dot{animation:fss-pulse 1s ease-in-out infinite;}
+  .field-sync-status.saved{color:#8DE8B4;}
+  .field-sync-status.queued{color:#FFB199;}
+  .field-sync-status.error{color:#FF9B94;}
+  @keyframes fss-pulse{0%,100%{opacity:.35;}50%{opacity:1;}}
   .modal-foot{padding:16px 26px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;align-items:center;gap:10px;background:#F9FAFD;flex-shrink:0;padding-bottom:calc(16px + var(--safe-b));}
   .modal-foot .left{margin-right:auto;display:flex;gap:10px;}
   .modal-foot .right{display:flex;gap:10px;}
@@ -1338,7 +1385,7 @@
               <div class="status-menu" id="remarkMenu">
                 <div class="status-menu-list">
                   <button type="button" class="status-option active" data-value=""><span class="so-label">Remarks</span></button>
-                  <button type="button" class="status-option" data-value="pending"><span class="so-label">No Remarks</span></button>
+                  <button type="button" class="status-option" data-value="pending"><span class="so-label">With Remarks</span></button>
                   <button type="button" class="status-option" data-value="done"><span class="so-label">Prev Remarks</span></button>
                 </div>
               </div>
@@ -1411,6 +1458,7 @@
     <div class="modal-head">
       <div>
         <h2 id="mTitle">Account &amp; unit information</h2>
+        <span class="field-sync-status" id="fieldSyncStatus"></span>
       </div>
       <button class="modal-close" onclick="closeModal()"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
@@ -1471,6 +1519,12 @@
   </div>
   <div class="notif-list" id="notifList"></div>
 </div>
+
+<!-- Colored-choice dropdown for "select" type FIELDS (Unit status, Payment
+     mode, ...) — see SELECT_OPTIONS / buildFieldGrid / openSelectPopoverFor_.
+     Lives at the top level, alongside notifPanel above, for the same
+     clipping reason described in the comment on notifPanel. -->
+<div class="select-popover" id="selectFieldPopover"></div>
 
 <div class="overlay" id="notifDetailOverlay">
   <div class="modal">
@@ -2364,12 +2418,39 @@
     }
   }
 
+  // Fixed choice lists for the "select" type FIELDS below (Unit status,
+  // Payment mode). Each option's `color` drives the pill shown both on
+  // the field button (buildFieldGrid) and in its dropdown popover
+  // (renderSelectPopoverOptions_) — purely presentational, only `value`
+  // is ever sent to the sheet.
+  const SELECT_OPTIONS = {
+    unitStatus: [
+      { value:'Good condition', color:'#1C9A57' },
+      { value:'Not Confirmed',  color:'#D93636' },
+      { value:'Missing',        color:'#C79300' },
+      { value:'Total wreck',    color:'#8B5CF6' },
+      { value:'Impounded',      color:'#2196C9' },
+      { value:'Pulled out',     color:'#A16207' },
+      { value:'Tracing',        color:'#7C3AED' },
+      { value:'Carnap',         color:'#6B7280' },
+      { value:'Damaged',        color:'#0D9488' }
+    ],
+    paymentMode: [
+      { value:'BRANCH',         color:'#1C9A57' },
+      { value:'FIELD',          color:'#D93636' },
+      { value:'N/A',            color:'#6B7280' },
+      { value:'ONLINE PAYMENT', color:'#2196C9' }
+    ]
+  };
+
   // Field definitions drive both the edit/create form and payload building.
   // `lockedOnEdit:false` marks the only fields an auditor may change on an
   // EXISTING customer (plus the remarks/history sections, handled
   // separately). Everything else is shown for reference but locked —
   // when creating a brand-new customer none of this applies and every
-  // field is editable (see buildFieldGrid()).
+  // field is editable (see buildFieldGrid()). `type:'select'` fields
+  // render as a colored-pill dropdown button instead of a plain input —
+  // see SELECT_OPTIONS above and openSelectPopoverFor_ below.
   const FIELDS = [
     { key:'customer',           label:'Customer Name',       type:'text',   span:2, required:true, lockedOnEdit:true },
     { key:'siDate',             label:'Release/Rstr Date',    type:'date',   lockedOnEdit:true },
@@ -2382,8 +2463,8 @@
     { key:'outstandingBalance', label:'Outstanding Balance (₱)', type:'number', lockedOnEdit:false, money:true },
     { key:'remainingBalance',   label:'Beg Bal (₱)',          type:'number', lockedOnEdit:false, money:true },
     { key:'unitAccountStatus',  label:'Unit/Account status',  type:'text', placeholder:'e.g. OD, DEL, RSTR, CURRENT', lockedOnEdit:true },
-    { key:'unitStatus',         label:'Unit status',          type:'text', lockedOnEdit:false },
-    { key:'paymentMode',        label:'Payment mode',         type:'text', span:2, lockedOnEdit:false },
+    { key:'unitStatus',         label:'Unit status',          type:'select', options: SELECT_OPTIONS.unitStatus, lockedOnEdit:false },
+    { key:'paymentMode',        label:'Payment mode',         type:'select', options: SELECT_OPTIONS.paymentMode, lockedOnEdit:false },
   ];
 
   // Groups the flat FIELDS list into the labeled card sections shown in
@@ -2395,7 +2476,7 @@
     { title:'Customer & unit',    badge:'b1', num:1, keys:['customer','model','engineNo'] },
     { title:'Loan terms',         badge:'b2', num:2, keys:['siDate','dueDay','terms'] },
     { title:'Financial summary',  badge:'b3', num:3, keys:['ma','remainingBalance','dateOfLastPayment','outstandingBalance'] },
-    { title:'Status',             badge:'b4', num:4, keys:['unitAccountStatus','unitStatus','paymentMode'] },
+    { title:'Status',             badge:'b4', num:4, keys:['unitAccountStatus','unitStatus','paymentMode'], autoFitCols:true },
   ];
 
   let customers = [];
@@ -5722,7 +5803,7 @@
   function updateRemarkFilterBtn_(){
     const btn = document.getElementById('remarkFilterBtn');
     if(!btn) return;
-    btn.textContent = remarkFilterValue_ === 'pending' ? 'No Remarks'
+    btn.textContent = remarkFilterValue_ === 'pending' ? 'With Remarks'
       : remarkFilterValue_ === 'done' ? 'Prev Remarks'
       : 'Remarks';
   }
@@ -5895,8 +5976,8 @@
           return `<div class="rc-row">` +
             `<button type="button" class="rc-row-status rc-row-status-btn" data-status="${escapeHtml(key)}">${escapeHtml(b.label)}</button>` +
             `<span class="rc-row-counts">` +
-              `<button type="button" class="rc-pill rc-pill-has" data-status="${escapeHtml(key)}" data-remark="done">${b.withRemarks} with</button>` +
-              `<button type="button" class="rc-pill rc-pill-none" data-status="${escapeHtml(key)}" data-remark="pending">${noRemarks} none</button>` +
+              `<button type="button" class="rc-pill rc-pill-has" data-status="${escapeHtml(key)}" data-remark="pending">${b.withRemarks} with</button>` +
+              `<button type="button" class="rc-pill rc-pill-none" data-status="${escapeHtml(key)}" data-remark="">${noRemarks} none</button>` +
             `</span></div>`;
         }).join('');
       }
@@ -6066,8 +6147,14 @@
         if(!selectedStatuses_.has(key)) return false;
       }
       const hasRemark = c.remarks && str_(c.remarks).toUpperCase() !== 'NO REMARKS';
-      if(remarkF === 'pending' && hasRemark) return false;
-      if(remarkF === 'done' && !hasRemark) return false;
+      const hasOldRemark = !!(c.oldRemarks && str_(c.oldRemarks).trim() !== '');
+      // "" (default, labeled "Remarks"): no CURRENT remarks yet.
+      // "pending" (labeled "With Remarks"): HAS a current remark.
+      // "done" (labeled "Prev Remarks"): has an entry in the OLD remarks
+      // history, regardless of current remarks.
+      if(remarkF === '' && hasRemark) return false;
+      if(remarkF === 'pending' && !hasRemark) return false;
+      if(remarkF === 'done' && !hasOldRemark) return false;
       return true;
     });
 
@@ -6374,6 +6461,112 @@
   document.getElementById('tableBody').addEventListener('scroll', closeMarkPopover_);
   window.addEventListener('scroll', closeMarkPopover_, true);
 
+  // ---- Select-type field dropdown (Unit status / Payment mode) ------
+  //
+  // Same open/position/close pattern as the mark-popover above, but the
+  // option list is built on the fly from whichever FIELDS entry's
+  // `options` (SELECT_OPTIONS) matches the key of the button that was
+  // clicked, since this one popover is shared by every select-type field
+  // instead of each field getting its own fixed markup.
+  let selectPopoverKey = null;  // FIELDS key the open popover belongs to, or null when closed
+  let selectPopoverBtn = null;  // the .fc-select-btn that opened it, so we can write the chosen value back
+
+  function closeSelectPopover_(){
+    selectPopoverKey = null;
+    selectPopoverBtn = null;
+    document.getElementById('selectFieldPopover').classList.remove('open');
+  }
+
+  function renderSelectPopoverOptions_(key, currentValue){
+    const byKey = {};
+    FIELDS.forEach(f => byKey[f.key] = f);
+    const f = byKey[key];
+    const opts = (f && f.options) || [];
+    return opts.map(o => {
+      const active = o.value === currentValue ? ' active' : '';
+      return `<button type="button" class="select-option${active}" data-value="${escapeHtml(o.value)}">
+        <span class="select-pill" style="background:${o.color}1A;color:${o.color};border-color:${o.color}55;">${escapeHtml(o.value)}</span>
+        <span class="check">✓</span>
+      </button>`;
+    }).join('') + `<button type="button" class="select-option clear" data-value="">
+        <span>Clear</span><span class="check">✓</span>
+      </button>`;
+  }
+
+  function positionSelectPopover_(){
+    const pop = document.getElementById('selectFieldPopover');
+    if(!selectPopoverBtn) return;
+    // Position under the button, nudged left if it would overflow the
+    // viewport's right edge, and flipped above the button if it would
+    // overflow the bottom (the field grid can sit near the modal's
+    // bottom edge, unlike the always-scrollable card list).
+    const r = selectPopoverBtn.getBoundingClientRect();
+    let top = r.bottom + 6;
+    if(top + pop.offsetHeight > window.innerHeight - 8){
+      top = r.top - pop.offsetHeight - 6;
+      if(top < 8) top = 8;
+    }
+    pop.style.top = top + 'px';
+    let left = r.left;
+    if(left + pop.offsetWidth > window.innerWidth - 8) left = window.innerWidth - 8 - pop.offsetWidth;
+    if(left < 8) left = 8;
+    pop.style.left = left + 'px';
+  }
+
+  function openSelectPopoverFor_(key, btnEl){
+    selectPopoverKey = key;
+    selectPopoverBtn = btnEl;
+    const pop = document.getElementById('selectFieldPopover');
+    pop.innerHTML = renderSelectPopoverOptions_(key, btnEl.dataset.value || '');
+    pop.classList.add('open');
+    positionSelectPopover_();
+  }
+
+  document.getElementById('selectFieldPopover').addEventListener('click', (e)=>{
+    const opt = e.target.closest('.select-option');
+    if(!opt || !selectPopoverBtn) return;
+    const value = opt.dataset.value || '';
+    selectPopoverBtn.dataset.value = value;
+    const byKey = {};
+    FIELDS.forEach(f => byKey[f.key] = f);
+    const f = byKey[selectPopoverKey];
+    const match = f && (f.options || []).find(o => o.value === value);
+    const pillEl = selectPopoverBtn.querySelector('.select-pill');
+    if(pillEl){
+      if(match){
+        pillEl.className = 'select-pill';
+        pillEl.style.background = match.color + '1A';
+        pillEl.style.color = match.color;
+        pillEl.style.borderColor = match.color + '55';
+        pillEl.textContent = match.value;
+      } else {
+        pillEl.className = 'select-pill placeholder';
+        pillEl.removeAttribute('style');
+        pillEl.textContent = 'Select…';
+      }
+    }
+    if(modalMode === 'edit' && activeRow) autoSaveField_(selectPopoverKey, value);
+    closeSelectPopover_();
+  });
+
+  document.addEventListener('click', (e)=>{
+    if(selectPopoverKey === null) return;
+    if(e.target.closest('#selectFieldPopover') || e.target.closest('.fc-select-btn')) return;
+    closeSelectPopover_();
+  });
+  // Track the trigger button on scroll instead of closing — the field
+  // grid (and the popover, once open) often needs a scroll to fully see,
+  // and closing on the first scroll made it impossible to ever reach an
+  // option below the fold. Only a real outside click, Escape, or picking
+  // an option closes it now.
+  const repositionSelectPopoverIfOpen_ = () => { if(selectPopoverKey !== null) positionSelectPopover_(); };
+  document.querySelectorAll('.modal-body').forEach(mb => mb.addEventListener('scroll', repositionSelectPopoverIfOpen_));
+  window.addEventListener('scroll', repositionSelectPopoverIfOpen_, true);
+  window.addEventListener('resize', repositionSelectPopoverIfOpen_);
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape' && selectPopoverKey !== null) closeSelectPopover_();
+  });
+
   // Google Sheets can hand back a number, boolean, or Date for a column
   // that's supposed to hold plain text (e.g. someone typed "2024" or a
   // raw date into a remarks/status cell instead of text). Every place
@@ -6431,6 +6624,21 @@
 
         const ph = f.placeholder ? ` placeholder="${escapeHtml(f.placeholder)}"` : '';
 
+        if(f.type === 'select'){
+          const opts = f.options || [];
+          const match = opts.find(o => o.value === raw);
+          const pillHtml = match
+            ? `<span class="select-pill" style="background:${match.color}1A;color:${match.color};border-color:${match.color}55;">${escapeHtml(match.value)}</span>`
+            : `<span class="select-pill placeholder">${raw ? escapeHtml(raw) : 'Select…'}</span>`;
+          return `<div class="field-card${spanClass}">
+            <span class="fc-label">${escapeHtml(f.label)}${f.required ? ' *' : ''}</span>
+            <button type="button" class="fc-select-btn" data-key="${f.key}" data-value="${escapeHtml(raw)}" onclick="openSelectPopoverFor_('${f.key}', this)">
+              ${pillHtml}
+              <svg class="svgicon fc-select-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>`;
+        }
+
         if(f.money){
           // Editable peso amount: shown with a fixed ₱ prefix and
           // comma-formatted while at rest; formatting is stripped on
@@ -6456,7 +6664,7 @@
 
       return `<div class="field-group">
         <div class="section-title"><span class="section-badge ${group.badge}">${group.num}</span> ${escapeHtml(group.title)}</div>
-        <div class="field-card-grid">${cardsHtml}</div>
+        <div class="field-card-grid${group.autoFitCols ? ' grid-auto3' : ''}">${cardsHtml}</div>
       </div>`;
     }).join('');
 
@@ -6470,10 +6678,18 @@
       // guard on .disabled too in case that ever changes — locked/read-only
       // values must never be sent back to the server as an "edit".
       if(el.disabled) return;
-      let val = el.value.trim();
-      // Money inputs display with ₱/commas for readability — strip that
-      // back to a plain number before it goes to the sheet.
-      if(el.dataset.money) val = stripMoneyFormatting_(val);
+      let val;
+      if(el.tagName === 'BUTTON'){
+        // select-type fields (see buildFieldGrid) are a <button> pill, not
+        // an <input> — the chosen value lives in data-value, kept in sync
+        // by openSelectPopoverFor_'s option click handler, not el.value.
+        val = el.dataset.value || '';
+      } else {
+        val = el.value.trim();
+        // Money inputs display with ₱/commas for readability — strip that
+        // back to a plain number before it goes to the sheet.
+        if(el.dataset.money) val = stripMoneyFormatting_(val);
+      }
       out[el.dataset.key] = val;
     });
     return out;
@@ -6784,10 +7000,113 @@
     }
   }
 
-  // ---- Modal highlight picker — mirrors setMark_'s four colors, but
-  // doesn't save on click; it just tracks modalMarkerColor_, which
-  // saveModal() folds into the same fields object as everything else so
-  // it's written in the same request as the remark/field edits. ----
+  // ---- Modal-head sync status indicator --------------------------------
+  //
+  // Small "Saving… / All changes saved / Saved offline" readout under the
+  // modal title, driven by autoSaveField_/autoSaveCurrentRemark_ below.
+  // Purely a status readout — never blocks or reorders the actual saves.
+  let fieldSyncStatusResetTimer_;
+  function setFieldSyncStatus_(mode, text){
+    const el = document.getElementById('fieldSyncStatus');
+    if(!el) return;
+    clearTimeout(fieldSyncStatusResetTimer_);
+    el.className = 'field-sync-status show' + (mode ? ' ' + mode : '');
+    el.innerHTML = '<span class="dot"></span><span>' + escapeHtml(text) + '</span>';
+    if(mode === 'saved'){
+      fieldSyncStatusResetTimer_ = setTimeout(()=>{ el.classList.remove('show'); }, 2200);
+    }
+  }
+
+  // ---- Auto-save for field-grid edits (Unit status, Payment mode, Date
+  // of last payment, Outstanding balance, Beg Bal, and the highlight
+  // marker) ----------------------------------------------------------
+  //
+  // Same idea as autoSaveCurrentRemark_ above, generalized to any single
+  // WRITABLE_FIELDS key: goes through the exact same queueOrSend_ path a
+  // manual "Save changes" click uses (optimistic update immediately,
+  // real request right behind it, falls back to the offline outbox if
+  // there's no connection), so nothing about how a save actually behaves
+  // changes — only that it now fires as soon as a field changes instead
+  // of waiting for the button. Only applies to an EXISTING customer
+  // (modalMode 'edit') — a brand-new, not-yet-created row has nothing to
+  // patch yet, so create mode still waits for "Create customer".
+  async function autoSaveField_(key, value){
+    const row = activeRow;
+    if(!row || modalMode !== 'edit') return;
+    const c = customers.find(x => x.row === row);
+    if(c && str_(c[key]) === str_(value)) return; // no actual change — skip a no-op save
+    const fields = {};
+    fields[key] = value;
+    const item = {
+      id: genId_(),
+      kind: 'update',
+      row: row,
+      fields: fields,
+      remark: null,
+      auditor: null,
+      status: 'pending',
+      snapshot: c ? { customer: c.customer, remarks: c.remarks, dateOfAudit: c.dateOfAudit, oldRemarks: c.oldRemarks, [key]: c[key] } : null
+    };
+    setFieldSyncStatus_('saving', 'Saving…');
+    try{
+      const result = await queueOrSend_(item);
+      if(activeRow !== row) return; // modal moved on to something else while this was in flight
+      if(result && result.queued){
+        setFieldSyncStatus_('queued', 'Offline — saved on this device');
+      } else {
+        setFieldSyncStatus_('saved', 'All changes saved');
+      }
+    }catch(err){
+      if(activeRow === row) setFieldSyncStatus_('error', 'Could not save — ' + err.message);
+      toast('Could not auto-save: ' + err.message);
+    }
+  }
+
+  const fieldAutoSaveTimers_ = {};
+  const FIELD_AUTO_SAVE_DELAY_MS = 600;
+
+  function readFieldElValue_(el){
+    let val = el.value.trim();
+    if(el.dataset.money) val = stripMoneyFormatting_(val);
+    return val;
+  }
+
+  // Typed fields (date / number / money) debounce so a save isn't fired
+  // on every keystroke — same delay used for the remark drafts above.
+  // Select-type fields and the marker picker call autoSaveField_
+  // directly instead (see openSelectPopoverFor_'s option click handler
+  // and the #modalMarkerPicker listener below) since a tap/click is
+  // already a complete, deliberate choice with nothing to debounce.
+  function scheduleFieldAutoSave_(el){
+    const key = el.dataset.key;
+    if(!key || modalMode !== 'edit') return;
+    clearTimeout(fieldAutoSaveTimers_[key]);
+    fieldAutoSaveTimers_[key] = setTimeout(()=>{
+      autoSaveField_(key, readFieldElValue_(el));
+    }, FIELD_AUTO_SAVE_DELAY_MS);
+  }
+
+  document.getElementById('fieldGrid').addEventListener('input', (e)=>{
+    const el = e.target.closest('input[data-key]');
+    if(!el || el.disabled) return;
+    scheduleFieldAutoSave_(el);
+  });
+  // 'change' catches a native date picker selection, which doesn't
+  // always fire 'input' — fires immediately rather than debounced since
+  // picking a date is already a single deliberate action, not typing.
+  document.getElementById('fieldGrid').addEventListener('change', (e)=>{
+    const el = e.target.closest('input[data-key][type="date"]');
+    if(!el || el.disabled) return;
+    clearTimeout(fieldAutoSaveTimers_[el.dataset.key]);
+    autoSaveField_(el.dataset.key, readFieldElValue_(el));
+  });
+
+  // ---- Modal highlight picker — mirrors setMark_'s four colors, and (like
+  // every other field-grid edit) auto-saves on click when editing an
+  // existing customer via autoSaveField_. In create mode there's nothing
+  // to patch yet, so it just tracks modalMarkerColor_, which saveModal()
+  // folds into the same fields object as everything else so it's written
+  // in the same request as the rest of the new row.
   let modalMarkerColor_ = '';
   function setModalMarkerPickerColor_(color){
     modalMarkerColor_ = color || '';
@@ -6799,13 +7118,48 @@
     const btn = e.target.closest('.mini-mark-swatch');
     if(!btn) return;
     setModalMarkerPickerColor_(btn.dataset.color);
+    if(modalMode === 'edit' && activeRow) autoSaveField_('marker', modalMarkerColor_);
   });
+
+  function resetFieldSyncStatus_(){
+    clearTimeout(fieldSyncStatusResetTimer_);
+    const el = document.getElementById('fieldSyncStatus');
+    if(el){ el.classList.remove('show'); el.innerHTML = ''; }
+  }
+
+  // Drops any pending debounced field auto-saves WITHOUT sending them —
+  // used right after saveModal()'s own full save already covered every
+  // field, so a leftover debounce timer doesn't turn around and fire a
+  // second, redundant request a moment later.
+  function cancelPendingFieldAutoSaves_(){
+    Object.keys(fieldAutoSaveTimers_).forEach(key=>{
+      clearTimeout(fieldAutoSaveTimers_[key]);
+      delete fieldAutoSaveTimers_[key];
+    });
+  }
+
+  // Immediately sends any still-pending debounced field auto-save rather
+  // than losing it — used when the modal is closing (Cancel/X/backdrop),
+  // since a typed edit within the last <600ms otherwise had its save
+  // timer canceled and its value never sent anywhere. Reads straight
+  // from the still-live #fieldGrid inputs, so this must run in closeModal
+  // BEFORE activeRow is cleared and before a next modal open replaces
+  // #fieldGrid's contents out from under it.
+  function flushPendingFieldAutoSaves_(){
+    Object.keys(fieldAutoSaveTimers_).forEach(key=>{
+      clearTimeout(fieldAutoSaveTimers_[key]);
+      delete fieldAutoSaveTimers_[key];
+      const el = document.querySelector('#fieldGrid input[data-key="' + key + '"]');
+      if(el && !el.disabled) autoSaveField_(key, readFieldElValue_(el));
+    });
+  }
 
   function openEditModal(row){
     const c = customers.find(x => x.row === row);
     if(!c) return;
     modalMode = 'edit';
     activeRow = row;
+    resetFieldSyncStatus_();
 
     document.getElementById('remarksSection').style.display = 'block';
     document.getElementById('historySection').style.display = 'block';
@@ -6842,6 +7196,7 @@
   function openCreateModal(){
     modalMode = 'create';
     activeRow = null;
+    resetFieldSyncStatus_();
 
     document.getElementById('remarksSection').style.display = 'block';
     document.getElementById('historySection').style.display = 'none';
@@ -6866,6 +7221,8 @@
 
   function closeModal(fromPopstate){
     document.getElementById('overlay').classList.remove('open');
+    closeSelectPopover_();
+    flushPendingFieldAutoSaves_();
     unlockBodyScroll();
     activeRow = null;
     if(!fromPopstate) consumeGuard_('overlay');
@@ -6945,6 +7302,11 @@
         toast(result && result.queued ? 'No connection — saved on this device, will sync automatically.' : 'Changes saved.');
         clearAllDrafts_(activeRow);
       }
+      // The full save above already covers every field, so drop (not
+      // flush) any debounce still pending from the last keystroke —
+      // closeModal()'s flush would otherwise fire a redundant duplicate
+      // request right behind this one.
+      cancelPendingFieldAutoSaves_();
       closeModal();
       // queueOrSend_ already patched `customers` and re-rendered (either
       // with the confirmed server result, or as an optimistic offline
@@ -6980,6 +7342,10 @@
       const result = await queueOrSend_(item);
       toast(result && result.queued ? 'No connection — will delete once back online.' : 'Customer deleted.');
       clearAllDrafts_(activeRow);
+      // The row is gone (or about to be) — a pending field edit has
+      // nowhere left to save to, so drop it rather than let closeModal()
+      // flush it into a write against a deleted row.
+      cancelPendingFieldAutoSaves_();
       closeModal();
     }catch(err){
       toast('Could not delete: ' + err.message);
