@@ -3878,6 +3878,17 @@
   let overlayGuardOpen_ = false;
   let branchGuardOpen_ = false;
   let suppressNextPopstate_ = false;
+  // Extra nesting layer, only for the specific case of opening the edit
+  // modal from a row inside Preview. Preview and the edit modal normally
+  // share the single 'overlay' guard (they don't nest against anything
+  // else), but this one combination genuinely is two screens deep — so
+  // it gets its own guard + its own history entry, pushed on top of
+  // Preview's. returnToPreviewOnClose_ remembers that the modal
+  // currently open was launched this way, so closeModal() (Cancel/X/
+  // Save/Delete, or the back button) lands back on Preview instead of
+  // the dashboard underneath it.
+  let overlayChildGuardOpen_ = false;
+  let returnToPreviewOnClose_ = false;
 
   function pushGuard_(which){
     const already = which === 'overlay' ? overlayGuardOpen_ : branchGuardOpen_;
@@ -3886,10 +3897,23 @@
     history.pushState({ aaGuard: which }, '');
   }
 
+  function pushChildGuard_(){
+    if(overlayChildGuardOpen_) return;
+    overlayChildGuardOpen_ = true;
+    history.pushState({ aaGuard: 'overlay-child' }, '');
+  }
+
   function consumeGuard_(which){
     const open = which === 'overlay' ? overlayGuardOpen_ : branchGuardOpen_;
     if(!open) return;
     if(which === 'overlay') overlayGuardOpen_ = false; else branchGuardOpen_ = false;
+    suppressNextPopstate_ = true;
+    history.back();
+  }
+
+  function consumeChildGuard_(){
+    if(!overlayChildGuardOpen_) return;
+    overlayChildGuardOpen_ = false;
     suppressNextPopstate_ = true;
     history.back();
   }
@@ -3903,8 +3927,14 @@
       return;
     }
     // A genuine back-button/gesture press. Undo whichever layer is
-    // topmost — overlay first, then branch — instead of letting the
+    // topmost — the Preview→edit-modal child layer first, then the
+    // shared overlay layer, then branch — instead of letting the
     // page (and the installed app) close.
+    if(overlayChildGuardOpen_){
+      overlayChildGuardOpen_ = false;
+      closeModal(true);
+      return;
+    }
     if(overlayGuardOpen_){
       overlayGuardOpen_ = false;
       if(document.getElementById('overlay').classList.contains('open')) closeModal(true);
@@ -4371,18 +4401,15 @@
     const row = e.target.closest('.preview-row');
     if(!row) return;
     const rowId = Number(row.dataset.row);
-    // Switch straight from the Preview list to the edit modal without
-    // closing/reopening the shared 'overlay' guard layer in between.
-    // Calling closePreviewOverlay_() here (which does history.back())
-    // immediately followed by openEditModal()'s pushState() raced the
-    // async back-navigation against the sync push, corrupting the
-    // history stack — so a later back press ran out of guard entries
-    // early and fell through to actually exiting the app instead of
-    // just closing the modal. Just swapping which overlay's DOM is
-    // visible keeps the guard depth at exactly 1, same as opening the
-    // edit modal directly from the main list.
+    // Switch straight from the Preview list to the edit modal, keeping
+    // Preview logically open underneath (its own history entry/scroll
+    // lock stay in place) — pushChildGuard_() below adds one more entry
+    // on top for the modal itself, so back/Cancel/Save/X on the modal
+    // returns to Preview instead of falling through to the dashboard.
     document.getElementById('previewOverlay').classList.remove('open');
+    returnToPreviewOnClose_ = true;
     openEditModal(rowId);
+    pushChildGuard_();
   });
 
   async function loadProfiles_(){
@@ -6429,7 +6456,7 @@
     const actBtn = e.target.closest('[data-act]');
     if(actBtn){
       const row = Number(actBtn.dataset.row);
-      if(actBtn.dataset.act === 'edit') openEditModal(row);
+      if(actBtn.dataset.act === 'edit'){ returnToPreviewOnClose_ = false; openEditModal(row); }
       if(actBtn.dataset.act === 'mark'){
         if(markPopoverRow === row) closeMarkPopover_();
         else openMarkPopoverFor_(row, actBtn);
@@ -6440,7 +6467,7 @@
       return;
     }
     const rec = e.target.closest('.rec');
-    if(rec) openEditModal(Number(rec.dataset.row));
+    if(rec){ returnToPreviewOnClose_ = false; openEditModal(Number(rec.dataset.row)); }
   });
 
   // The popover itself lives outside #tableBody (so re-rendering the list
@@ -7225,7 +7252,23 @@
     flushPendingFieldAutoSaves_();
     unlockBodyScroll();
     activeRow = null;
-    if(!fromPopstate) consumeGuard_('overlay');
+
+    // If this edit modal was opened from a row inside Preview, land
+    // back on Preview instead of exposing the dashboard underneath —
+    // see the guard comments above.
+    const returnToPreview = returnToPreviewOnClose_;
+    returnToPreviewOnClose_ = false;
+
+    if(!fromPopstate){
+      if(returnToPreview) consumeChildGuard_();
+      else consumeGuard_('overlay');
+    }
+
+    if(returnToPreview){
+      renderPreviewList_();
+      document.getElementById('previewOverlay').classList.add('open');
+    }
+
     // Refresh the list so any draft left behind (or cleared) in the modal
     // — current remark or new remark — shows up immediately on the card
     // instead of waiting for the next unrelated re-render.
