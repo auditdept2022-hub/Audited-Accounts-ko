@@ -357,6 +357,20 @@
      is flush against the header from initial paint too, so there's
      nothing left to snap: scrolling never changes its position at all. */
   .main{padding:0 clamp(14px,2.5vw,40px) 40px;width:100%;max-width:100%;margin:0 auto;box-sizing:border-box;}
+  /* When the page-wide .scrub-track (below) is actually showing, its
+     30px hit-area sits fixed over the right edge of the viewport — the
+     same strip where each card's mark-btn / row-actions (edit, etc.)
+     live, since .main has no fixed max-width and cards can run close to
+     that edge. Without this, a tap intended for those buttons on a long
+     list could land on the track instead and just scroll the page. The
+     preview-list's own scrub track already avoids this (see
+     .preview-list-wrap.has-scrub padding-right below) — this mirrors
+     that fix for the main list, adding the track's width on top of the
+     existing side padding only while it's on, and only on the
+     touch/coarse-pointer devices the track itself is shown on. */
+  @media (hover:none), (pointer:coarse){
+    body.has-scrub .main{padding-right:calc(clamp(14px,2.5vw,40px) + 30px);}
+  }
 
   .pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;flex-wrap:wrap;}
   .pagehead h1{font-family:'Poppins',sans-serif;font-size:25px;margin:0;font-weight:700;letter-spacing:-.2px;color:var(--ink);}
@@ -1381,12 +1395,13 @@
               </div>
             </div>
             <div class="status-switch" id="remarkSwitch">
-              <button class="btn" id="remarkFilterBtn" onclick="toggleRemarkMenu_(event)" title="Filter by remarks status">Remarks</button>
+              <button class="btn" id="remarkFilterBtn" onclick="toggleRemarkMenu_(event)" title="Filter by remarks status">All Customers</button>
               <div class="status-menu" id="remarkMenu">
                 <div class="status-menu-list">
-                  <button type="button" class="status-option active" data-value=""><span class="so-label">Remarks</span></button>
+                  <button type="button" class="status-option" data-value=""><span class="so-label">No Remarks</span></button>
                   <button type="button" class="status-option" data-value="pending"><span class="so-label">With Remarks</span></button>
                   <button type="button" class="status-option" data-value="done"><span class="so-label">Prev Remarks</span></button>
+                  <button type="button" class="status-option active" data-value="all"><span class="so-label">All Customers</span></button>
                 </div>
               </div>
             </div>
@@ -1892,7 +1907,13 @@
       scrollable = Math.max(0, doc.scrollHeight - window.innerHeight);
       // Nothing to scroll (short list, or a modal-covered short page) —
       // no point showing a thumb that can't go anywhere.
-      track.classList.toggle('on', scrollable > 40);
+      const on = scrollable > 40;
+      track.classList.toggle('on', on);
+      // Mirrors .preview-list-wrap.has-scrub: reserves room in .main so
+      // the track's hit-area doesn't sit on top of each card's
+      // mark-btn/row-actions buttons at the right edge — see the
+      // .main comment above for the full explanation.
+      document.body.classList.toggle('has-scrub', on);
       layout();
     }
 
@@ -4351,14 +4372,10 @@
       rows = rows.filter(c => !(c.remarks && str_(c.remarks).toUpperCase() !== 'NO REMARKS'));
     }
 
-    // No-remarks-first, then alphabetical within each group — so the
-    // people who most need a visit are right at the top of the scroll.
-    rows = rows.slice().sort((a, b) => {
-      const aHas = a.remarks && str_(a.remarks).toUpperCase() !== 'NO REMARKS';
-      const bHas = b.remarks && str_(b.remarks).toUpperCase() !== 'NO REMARKS';
-      if(aHas !== bHas) return aHas ? 1 : -1;
-      return str_(a.customer).localeCompare(str_(b.customer));
-    });
+    // Alphabetical only — a customer keeps its own number/position
+    // whether or not it currently has a remark, instead of being bumped
+    // to the bottom of the list once a remark gets added/saved.
+    rows = rows.slice().sort((a, b) => str_(a.customer).localeCompare(str_(b.customer)));
 
     const metaEl = document.getElementById('previewMeta');
     if(metaEl){
@@ -5826,13 +5843,14 @@
   // ---- Remarks filter — same custom dropdown-menu shell as the status
   // filter, single-select, instead of a native <select> (which can't be
   // styled/positioned consistently across mobile browsers). ----
-  let remarkFilterValue_ = '';
+  let remarkFilterValue_ = 'all';
   function updateRemarkFilterBtn_(){
     const btn = document.getElementById('remarkFilterBtn');
     if(!btn) return;
     btn.textContent = remarkFilterValue_ === 'pending' ? 'With Remarks'
       : remarkFilterValue_ === 'done' ? 'Prev Remarks'
-      : 'Remarks';
+      : remarkFilterValue_ === 'all' ? 'All Customers'
+      : 'No Remarks';
   }
   function setRemarkFilter_(value){
     remarkFilterValue_ = value || '';
@@ -6175,10 +6193,13 @@
       }
       const hasRemark = c.remarks && str_(c.remarks).toUpperCase() !== 'NO REMARKS';
       const hasOldRemark = !!(c.oldRemarks && str_(c.oldRemarks).trim() !== '');
-      // "" (default, labeled "Remarks"): no CURRENT remarks yet.
+      // "" (default, labeled "No Remarks"): no CURRENT remarks yet.
       // "pending" (labeled "With Remarks"): HAS a current remark.
       // "done" (labeled "Prev Remarks"): has an entry in the OLD remarks
       // history, regardless of current remarks.
+      // "all" (labeled "All Customers"): no remarks filtering at all —
+      // shows every customer with or without remarks, still subject to
+      // the Unit/Account status filter above.
       if(remarkF === '' && hasRemark) return false;
       if(remarkF === 'pending' && !hasRemark) return false;
       if(remarkF === 'done' && !hasOldRemark) return false;
@@ -6838,7 +6859,7 @@
     try{
       const searchEl = document.getElementById('searchBox');
       if(searchEl) searchEl.value = (state && state.search) || '';
-      remarkFilterValue_ = (state && state.remarkFilter) || '';
+      remarkFilterValue_ = (state && state.remarkFilter) || 'all';
       updateRemarkFilterBtn_();
       selectedStatuses_.clear();
       if(state && Array.isArray(state.statuses)){
