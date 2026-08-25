@@ -800,6 +800,13 @@
   .card:not(.select-mode) .bulk-bar{display:none;}
   .card:not(.select-mode) .row-check{display:none;width:0;padding:0;}
   #selectModeBtn.active{background:var(--accent-soft);border-color:#B9C4EE;color:var(--accent-dark);}
+  #showHiddenBtn.active{background:var(--accent-soft);border-color:#B9C4EE;color:var(--accent-dark);}
+  /* Restore button on a card shown only while browsing the hidden-
+     customers view (see showHiddenView_) — sits next to the status
+     badge like the copy-name icon does. */
+  .restore-btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:3px 8px;border-radius:999px;border:1px solid #B9C4EE;background:var(--accent-soft);color:var(--accent-dark);font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;}
+  .restore-btn .svgicon{width:12px;height:12px;}
+  .restore-btn:hover{background:#dfe4fb;}
   .rec.is-selected{border-color:var(--accent);box-shadow:0 0 0 2px rgba(42,61,154,.15);}
   .rec.is-selected::before{background:var(--accent);}
   .mark-option{display:flex;align-items:center;gap:10px;border:none;background:none;border-radius:9px;padding:8px 9px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text);text-align:left;width:100%;touch-action:manipulation;transition:background .12s ease;}
@@ -1424,6 +1431,7 @@
                 </div>
               </div>
             </div>
+            <button class="btn icon-only" id="showHiddenBtn" onclick="toggleHiddenView_()" title="Show hidden customers" aria-label="Show hidden customers"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.8 21.8 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
           </div>
         </div>
         </div>
@@ -5806,11 +5814,10 @@
   function clearStatusFilter_(){
     pendingStatuses_.clear();
     syncStatusCheckboxes_();
-    // "Clear" already means "go back to showing everyone" for the status
-    // filter, so hidden customers are brought back here too — the actual
-    // re-render happens once "OK" is pressed (applyStatusFilter_ below),
-    // same as the rest of this menu's staged changes.
-    unhideAllForBranch_();
+    // "Clear" only resets the Status filter itself now — manually-hidden
+    // customers are no longer brought back here. They stay hidden until
+    // restored individually from the hidden-customers view (the eye-off
+    // icon next to "All Customers").
   }
 
   // Commits the staged selection: copies pendingStatuses_ over
@@ -5877,6 +5884,23 @@
   // filter, single-select, instead of a native <select> (which can't be
   // styled/positioned consistently across mobile browsers). ----
   let remarkFilterValue_ = 'all';
+  // ---- Hidden-customers view — toggled by the icon-only button next to
+  // "All Customers". While on, the list shows ONLY manually-hidden
+  // customers (see hiddenRows_ below), each card getting a "Restore"
+  // button instead of ever auto-unhiding everyone via Reset/Clear. ----
+  let showHiddenView_ = false;
+  function updateShowHiddenBtn_(){
+    const btn = document.getElementById('showHiddenBtn');
+    if(!btn) return;
+    btn.classList.toggle('active', showHiddenView_);
+    btn.title = showHiddenView_ ? 'Back to all customers' : 'Show hidden customers';
+    btn.setAttribute('aria-label', btn.title);
+  }
+  function toggleHiddenView_(){
+    showHiddenView_ = !showHiddenView_;
+    updateShowHiddenBtn_();
+    requestAnimationFrame(() => requestAnimationFrame(render));
+  }
   function updateRemarkFilterBtn_(){
     const btn = document.getElementById('remarkFilterBtn');
     if(!btn) return;
@@ -6001,7 +6025,7 @@
       c.unitStatus + '\u0001' + c.paymentMode + '\u0001' + c.dateOfAudit + '\u0001' +
       c.remarks + '\u0001' + c.oldRemarks + '\u0001' +
       (c._pending ? 1 : 0) + '\u0001' + (isConflict ? 1 : 0) + '\u0001' + (mark || '') + '\u0001' +
-      draftFingerprint + '\u0001' + idx;
+      draftFingerprint + '\u0001' + idx + '\u0001' + (showHiddenView_ ? 1 : 0);
   }
 
   // Cheap "has this row's draft state changed" fingerprint for the cache
@@ -6220,7 +6244,15 @@
 
     const filtered = customers.filter(c=>{
       if(c._pendingDelete) return false; // queued for deletion, hide immediately
-      if(isHidden_(c.row)) return false; // manually hidden via the card's context menu — stays out of both the front page and Print until "Clear" is used on the status filter
+      // Manually-hidden customers (via the card's context menu) stay out
+      // of the normal list and Print entirely; the "show hidden" toggle
+      // flips this into an allowlist instead, so the hidden view shows
+      // ONLY those customers, each with its own Restore button.
+      if(showHiddenView_){
+        if(!isHidden_(c.row)) return false;
+      } else {
+        if(isHidden_(c.row)) return false;
+      }
       if(q){
         // Customer name: prefix match only — starts typing "L" and only
         // names that actually start with "L" show up (e.g. LASAY, LAO,
@@ -6237,23 +6269,29 @@
         const matches = name.indexOf(q) === 0 || model.indexOf(q) !== -1 || engineNo.indexOf(q) !== -1;
         if(!matches) return false;
       }
-      if(selectedStatuses_.size){
-        const cs = str_(c.unitAccountStatus).trim();
-        const key = cs ? cs : STATUS_BLANK_VALUE;
-        if(!selectedStatuses_.has(key)) return false;
+      // Status/remarks filters are skipped entirely while browsing the
+      // hidden view — the point is to see every hidden customer at once,
+      // not whichever subset happens to match filters left over from
+      // the normal list.
+      if(!showHiddenView_){
+        if(selectedStatuses_.size){
+          const cs = str_(c.unitAccountStatus).trim();
+          const key = cs ? cs : STATUS_BLANK_VALUE;
+          if(!selectedStatuses_.has(key)) return false;
+        }
+        const hasRemark = c.remarks && str_(c.remarks).toUpperCase() !== 'NO REMARKS';
+        const hasOldRemark = !!(c.oldRemarks && str_(c.oldRemarks).trim() !== '');
+        // "" (default, labeled "No Remarks"): no CURRENT remarks yet.
+        // "pending" (labeled "With Remarks"): HAS a current remark.
+        // "done" (labeled "Prev Remarks"): has an entry in the OLD remarks
+        // history, regardless of current remarks.
+        // "all" (labeled "All Customers"): no remarks filtering at all —
+        // shows every customer with or without remarks, still subject to
+        // the Unit/Account status filter above.
+        if(remarkF === '' && hasRemark) return false;
+        if(remarkF === 'pending' && !hasRemark) return false;
+        if(remarkF === 'done' && !hasOldRemark) return false;
       }
-      const hasRemark = c.remarks && str_(c.remarks).toUpperCase() !== 'NO REMARKS';
-      const hasOldRemark = !!(c.oldRemarks && str_(c.oldRemarks).trim() !== '');
-      // "" (default, labeled "No Remarks"): no CURRENT remarks yet.
-      // "pending" (labeled "With Remarks"): HAS a current remark.
-      // "done" (labeled "Prev Remarks"): has an entry in the OLD remarks
-      // history, regardless of current remarks.
-      // "all" (labeled "All Customers"): no remarks filtering at all —
-      // shows every customer with or without remarks, still subject to
-      // the Unit/Account status filter above.
-      if(remarkF === '' && hasRemark) return false;
-      if(remarkF === 'pending' && !hasRemark) return false;
-      if(remarkF === 'done' && !hasOldRemark) return false;
       return true;
     });
 
@@ -6444,6 +6482,9 @@
       const pendingTag = isConflict
         ? `<span class="tag-pending err" onclick="event.stopPropagation(); showRowSyncIssue_(${c.row});" style="cursor:pointer;" title="Tap to see why and fix it">⚠ Needs attention</span>`
         : (c._pending ? `<span class="tag-pending">⏳ Syncing</span>` : '');
+      const restoreBtn = showHiddenView_
+        ? `<button type="button" class="restore-btn" title="Restore this customer to the main list" data-act="restore" data-row="${c.row}"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Restore</button>`
+        : '';
       const recClass = 'rec' + (isConflict ? ' is-conflict' : (c._pending ? ' is-pending' : '')) + (mark ? ' marked-' + mark : '');
 
       const html = `<div class="${recClass}" data-row="${c.row}">
@@ -6459,6 +6500,7 @@
             </button>
             <span class="badge ${g}">${escapeHtml(c.unitAccountStatus || '—')}</span>
             ${pendingTag}
+            ${restoreBtn}
           </div>
           <div class="rec-right">
             <div class="quick-info" onclick="event.stopPropagation()">
@@ -6535,6 +6577,9 @@
       }
       if(actBtn.dataset.act === 'copy-name'){
         copyCustomerName_(actBtn);
+      }
+      if(actBtn.dataset.act === 'restore'){
+        unhideCustomer_(row);
       }
       return;
     }
@@ -6911,24 +6956,14 @@
     hiddenRows_.add(row);
     saveHidden_();
     render();
-    toast('Customer hidden. It reappears once you Clear the status filter.');
+    toast('Customer hidden. Restore it anytime from the hidden-customers view.');
   }
   function unhideCustomer_(row){
     ensureHiddenLoaded_();
     hiddenRows_.delete(row);
     saveHidden_();
     render();
-    toast('Customer unhidden.');
-  }
-  // Unhides every hidden customer on the current branch — wired up to
-  // the status filter's "Clear" action (see clearStatusFilter_) since
-  // that's the "show everyone again" action the hide feature piggybacks
-  // on, per how this was scoped.
-  function unhideAllForBranch_(){
-    ensureHiddenLoaded_();
-    if(!hiddenRows_.size) return;
-    hiddenRows_.clear();
-    saveHidden_();
+    toast('Customer restored.');
   }
 
   // ---- Customer card context menu (long-press / right-click) --------
