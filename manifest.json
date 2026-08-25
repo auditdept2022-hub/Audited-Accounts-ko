@@ -6,7 +6,8 @@
   "scope": "./",
   "id": "./",
   "display": "standalone",
-  "orientation": "portrait-primary",
+  "display_override": ["standalone", "fullscreen", "minimal-ui", "browser"],
+  "orientation": "portrait",
   "background_color": "#F4F6FC",
   "theme_color": "#1F3FCF",
   "icons": [
