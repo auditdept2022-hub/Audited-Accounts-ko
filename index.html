@@ -2938,10 +2938,13 @@
           let v = c[col.key];
           const isMoney = (col.key === 'ma');
           const isRemarks = col.key === 'remarks';
+          const isDate = (col.key === 'siDate');
           if(isMoney){
             v = (v !== '' && v != null) ? '₱' + fmtMoney(v) : '—';
           } else if(isRemarks){
             v = (v && str_(v).toUpperCase() !== 'NO REMARKS') ? v : '';
+          } else if(isDate){
+            v = v ? fmtDateDisplay_(v) : '—';
           } else {
             v = v || '—';
           }
@@ -5887,6 +5890,23 @@
     return n.toLocaleString('en-PH', {minimumFractionDigits:0, maximumFractionDigits:0});
   }
 
+  // Turns a yyyy-MM-dd date string into a human-friendly display date
+  // like "June 1, 2001". This is DISPLAY ONLY — the sheet, the quick-edit
+  // date inputs, and CSV/XLSX export all keep using the plain yyyy-MM-dd
+  // form (input[type=date] requires it, and it's what the backend stores
+  // and re-imports). Anything that isn't a clean yyyy-MM-dd — blank,
+  // "—", or free text a branch typed straight into the sheet — is
+  // returned unchanged rather than mangled.
+  function fmtDateDisplay_(v){
+    const s = (v == null ? '' : String(v)).trim();
+    if(!s) return '';
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(!m) return s;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if(isNaN(d.getTime())) return s;
+    return d.toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' });
+  }
+
   // <input type="date"> only accepts a strict yyyy-MM-dd value — anything
   // else (blank, "—", a free-text date some branch typed into the sheet)
   // gets silently rejected by the browser and shows the field as blank.
@@ -6346,11 +6366,11 @@
       const facts = [
         ['Model', c.model || '—'],
         ['Engine No', c.engineNo || '—'],
-        ['Release/Rstr Date', c.siDate || '—'],
+        ['Release/Rstr Date', c.siDate ? fmtDateDisplay_(c.siDate) : '—'],
         ['Due Date', c.dueDay || '—'],
         ['Terms', c.terms || '—'],
         ['MA', c.ma !== '' && c.ma != null ? '₱' + fmtMoney(c.ma) : '—'],
-        ['Date of Last Payment', c.dateOfLastPayment || '—'],
+        ['Date of Last Payment', c.dateOfLastPayment ? fmtDateDisplay_(c.dateOfLastPayment) : '—'],
         ['Outstanding Balance', c.outstandingBalance !== '' && c.outstandingBalance != null ? '₱' + fmtMoney(c.outstandingBalance) : '—'],
         ['Beg Bal', c.remainingBalance !== '' && c.remainingBalance != null ? '₱' + fmtMoney(c.remainingBalance) : '—'],
         ['Unit Status', c.unitStatus || '—'],
@@ -6384,10 +6404,10 @@
       }
 
       remarksHtml +=
-        `<div class="rline"><div class="rdate">${escapeHtml(c.dateOfAudit || '')} <span class="rtag rtag-current">Current</span></div>` +
+        `<div class="rline"><div class="rdate">${escapeHtml(fmtDateDisplay_(c.dateOfAudit || ''))} <span class="rtag rtag-current">Current</span></div>` +
         `<div class="rtext ${hasRemark ? '' : 'none'}">${hasRemark ? escapeHtml(c.remarks) : 'No remarks yet'}</div></div>`;
       for(let j = 0; j < hist.length; j++){
-        remarksHtml += `<div class="rline"><div class="rdate">${escapeHtml(hist[j].date || '')} <span class="rtag rtag-prev">Previous</span></div><div class="rtext">${escapeHtml(hist[j].remark)}</div></div>`;
+        remarksHtml += `<div class="rline"><div class="rdate">${escapeHtml(fmtDateDisplay_(hist[j].date || ''))} <span class="rtag rtag-prev">Previous</span></div><div class="rtext">${escapeHtml(hist[j].remark)}</div></div>`;
       }
 
       const pendingTag = isConflict
@@ -6663,7 +6683,9 @@
           // amount at a glance, same formatting as the record cards use.
           const display = f.money
             ? (raw !== '' && raw != null ? '₱' + fmtMoney(raw) : '—')
-            : (raw !== '' && raw != null && raw !== '' ? String(raw) : '—');
+            : (f.type === 'date'
+                ? (raw !== '' && raw != null ? fmtDateDisplay_(raw) : '—')
+                : (raw !== '' && raw != null && raw !== '' ? String(raw) : '—'));
           return `<div class="field-card locked${spanClass}">
             <span class="fc-label">${escapeHtml(f.label)}</span>
             <span class="fc-value">${escapeHtml(display)}</span>
@@ -7218,7 +7240,7 @@
     buildFieldGrid(c);
 
     const hasRemark = c.remarks && str_(c.remarks).toUpperCase() !== 'NO REMARKS';
-    document.getElementById('mCurrentDate').textContent = hasRemark ? (c.dateOfAudit || '') : '';
+    document.getElementById('mCurrentDate').textContent = hasRemark ? fmtDateDisplay_(c.dateOfAudit || '') : '';
     editorOriginalCurrent = hasRemark ? str_(c.remarks) : '';
 
     const currentDraft = loadDraft_(row, 'current');
