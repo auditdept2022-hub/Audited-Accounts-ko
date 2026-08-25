@@ -59,8 +59,16 @@
     font-family:'Inter', -apple-system, sans-serif;
   }
   *{box-sizing:border-box;}
-  html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
-  body{margin:0;background:var(--paper);color:var(--text);font-size:15.5px;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;overscroll-behavior-y:contain;}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%;width:100%;height:100%;}
+  /* Safety net against app-wrapper letterboxing (native WebView shells
+     that size their view differently from the actual device screen):
+     force html/body to always claim the full viewport, with no default
+     margin/padding, and the same paper background as the rest of the
+     app so any leftover sliver reads as background, not a stray black
+     bar. overflow-x:hidden guards against a 100vw child (which counts
+     the scrollbar as extra width on some WebViews) pushing the body
+     wider than the viewport and creating side gaps. */
+  body{margin:0;padding:0;width:100%;min-height:100%;background:var(--paper);color:var(--text);font-size:15.5px;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;overscroll-behavior-y:contain;overflow-x:hidden;}
   /* Browsers don't inherit the body's font-family into form controls by
      default (button/input/select/textarea use their own UA font, Arial
      in Chrome) — this makes every control actually use Nunito instead of
@@ -80,7 +88,7 @@
   html::-webkit-scrollbar{width:0;height:0;display:none;}
   button, .btn, .icon-btn, .hamburger-btn, .hdr-sync-btn{touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
 
-  .shell{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;}
+  .shell{display:flex;flex-direction:column;width:100%;min-height:100vh;min-height:100dvh;}
 
   /* Header — royal-blue-to-navy gradient with a swooping wave divider
      (gold line + white highlight) along the bottom edge. */
