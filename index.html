@@ -836,6 +836,15 @@
   .mark-option .check{margin-left:auto;color:var(--accent);font-weight:800;font-size:12px;opacity:0;flex-shrink:0;}
   .mark-option.active .check{opacity:1;}
 
+  /* Customer card context menu — opened by long-press (touch) or
+     right-click (mouse) on a customer card. Reuses .mark-popover's box
+     styling (border/shadow/padding) since it's the same kind of small
+     floating menu, just positioned at the press/click point instead of
+     under a fixed button. */
+  .ctx-option{display:flex;align-items:center;gap:9px;border:none;background:none;border-radius:9px;padding:9px 10px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text);text-align:left;width:100%;touch-action:manipulation;transition:background .12s ease;}
+  .ctx-option:hover{background:#F4F5FB;}
+  .ctx-option .svgicon{width:15px;height:15px;flex-shrink:0;color:var(--muted);}
+
   /* Modal */
   .overlay{position:fixed;inset:0;background:rgba(52,87,224,.32);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;z-index:50;backdrop-filter:blur(2px);}
   .overlay.open{display:flex;}
@@ -1467,6 +1476,12 @@
             <button class="mark-option" data-color="red" data-act="mark-set"><span class="mark-swatch" data-color="red"></span><span>Red</span><span class="check">✓</span></button>
             <button class="mark-option" data-color="sky" data-act="mark-set"><span class="mark-swatch" data-color="sky"></span><span>Sky blue</span><span class="check">✓</span></button>
             <button class="mark-option clear" data-color="" data-act="mark-set"><span class="mark-swatch" data-color=""></span><span>Clear mark</span><span class="check">✓</span></button>
+          </div>
+          <div class="mark-popover" id="customerCtxMenu">
+            <button type="button" class="ctx-option" data-act="ctx-toggle-hide">
+              <svg class="svgicon" id="ctxToggleHideIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.8 21.8 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              <span id="ctxToggleHideLabel">Hide customer</span>
+            </button>
           </div>
         </div>
         <div class="empty-state" id="emptyState" style="display:none;">
@@ -5791,6 +5806,11 @@
   function clearStatusFilter_(){
     pendingStatuses_.clear();
     syncStatusCheckboxes_();
+    // "Clear" already means "go back to showing everyone" for the status
+    // filter, so hidden customers are brought back here too — the actual
+    // re-render happens once "OK" is pressed (applyStatusFilter_ below),
+    // same as the rest of this menu's staged changes.
+    unhideAllForBranch_();
   }
 
   // Commits the staged selection: copies pendingStatuses_ over
@@ -6200,6 +6220,7 @@
 
     const filtered = customers.filter(c=>{
       if(c._pendingDelete) return false; // queued for deletion, hide immediately
+      if(isHidden_(c.row)) return false; // manually hidden via the card's context menu — stays out of both the front page and Print until "Clear" is used on the status filter
       if(q){
         // Customer name: prefix match only — starts typing "L" and only
         // names that actually start with "L" show up (e.g. LASAY, LAO,
@@ -6857,6 +6878,157 @@
   // per branch, so reopening the app after being swiped away puts you
   // right back where you left off instead of a blank slate.
   function viewStateKey_(){ return 'aa_view_state_v1:' + API_URL + ':' + currentSheet; }
+
+  // ---- Hidden customers (long-press / right-click "Hide" on a card) --
+  // A customer that's been hidden is skipped by getFilteredCustomers()
+  // entirely, so it disappears from both the front-page list and the
+  // Print output in one place — Print already reuses that same function,
+  // so nothing extra was needed there.
+  //
+  // Local-only (localStorage), keyed per API_URL + branch like the other
+  // per-branch UI state above, and lazily (re)loaded on first use each
+  // time that key changes — so switching branches never mixes one
+  // branch's hidden set into another's, without needing to hook every
+  // place currentSheet gets reassigned.
+  let hiddenRows_ = new Set();
+  let hiddenRowsKey_ = null;
+  function hiddenKey_(){ return 'aa_hidden_v1:' + API_URL + ':' + currentSheet; }
+  function ensureHiddenLoaded_(){
+    const k = hiddenKey_();
+    if(hiddenRowsKey_ === k) return;
+    hiddenRowsKey_ = k;
+    try{
+      const raw = localStorage.getItem(k);
+      hiddenRows_ = new Set(raw ? JSON.parse(raw) : []);
+    }catch(e){ hiddenRows_ = new Set(); }
+  }
+  function saveHidden_(){
+    try{ localStorage.setItem(hiddenKey_(), JSON.stringify(Array.from(hiddenRows_))); }catch(e){ /* best-effort */ }
+  }
+  function isHidden_(row){ ensureHiddenLoaded_(); return hiddenRows_.has(row); }
+  function hideCustomer_(row){
+    ensureHiddenLoaded_();
+    hiddenRows_.add(row);
+    saveHidden_();
+    render();
+    toast('Customer hidden. It reappears once you Clear the status filter.');
+  }
+  function unhideCustomer_(row){
+    ensureHiddenLoaded_();
+    hiddenRows_.delete(row);
+    saveHidden_();
+    render();
+    toast('Customer unhidden.');
+  }
+  // Unhides every hidden customer on the current branch — wired up to
+  // the status filter's "Clear" action (see clearStatusFilter_) since
+  // that's the "show everyone again" action the hide feature piggybacks
+  // on, per how this was scoped.
+  function unhideAllForBranch_(){
+    ensureHiddenLoaded_();
+    if(!hiddenRows_.size) return;
+    hiddenRows_.clear();
+    saveHidden_();
+  }
+
+  // ---- Customer card context menu (long-press / right-click) --------
+  let ctxMenuRow_ = null;
+  let suppressCardClick_ = false; // set right before a long-press opens the menu, so the click that follows touchend on mobile doesn't also open the edit modal underneath it
+
+  function closeCtxMenu_(){
+    ctxMenuRow_ = null;
+    document.getElementById('customerCtxMenu').classList.remove('open');
+  }
+
+  function openCtxMenuFor_(row, x, y){
+    ctxMenuRow_ = row;
+    const hidden = isHidden_(row);
+    document.getElementById('ctxToggleHideLabel').textContent = hidden ? 'Unhide customer' : 'Hide customer';
+    document.getElementById('ctxToggleHideIcon').style.display = hidden ? 'none' : '';
+    const pop = document.getElementById('customerCtxMenu');
+    pop.classList.add('open');
+    // Position at the press/click point, nudged back onto the screen if
+    // it would run off the right or bottom edge.
+    const menuW = pop.offsetWidth || 180;
+    let left = x;
+    if(left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
+    if(left < 8) left = 8;
+    pop.style.left = left + 'px';
+    pop.style.top = y + 'px';
+    requestAnimationFrame(()=>{
+      const menuH = pop.offsetHeight;
+      let top = y;
+      if(top + menuH > window.innerHeight - 8) top = window.innerHeight - menuH - 8;
+      if(top < 8) top = 8;
+      pop.style.top = top + 'px';
+    });
+  }
+
+  document.getElementById('customerCtxMenu').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const btn = e.target.closest('[data-act="ctx-toggle-hide"]');
+    if(!btn || ctxMenuRow_ === null) return;
+    const row = ctxMenuRow_;
+    if(isHidden_(row)) unhideCustomer_(row); else hideCustomer_(row);
+    closeCtxMenu_();
+  });
+  document.addEventListener('click', (e)=>{
+    if(ctxMenuRow_ === null) return;
+    if(e.target.closest('#customerCtxMenu')) return;
+    closeCtxMenu_();
+  });
+  document.getElementById('tableBody').addEventListener('scroll', closeCtxMenu_);
+  window.addEventListener('scroll', closeCtxMenu_, true);
+
+  // Right-click (desktop/mouse) — replaces the browser's own context
+  // menu with ours, same as any native app card would.
+  document.getElementById('tableBody').addEventListener('contextmenu', (e)=>{
+    const rec = e.target.closest('.rec');
+    if(!rec || !rec.dataset.row) return; // not a real card (e.g. the empty-branch sample card)
+    if(e.target.closest('.quick-info') || e.target.closest('[data-act]')) return;
+    e.preventDefault();
+    openCtxMenuFor_(Number(rec.dataset.row), e.clientX, e.clientY);
+  });
+
+  // Long-press (touch) — held ~500ms without the finger drifting far
+  // counts as a press-and-hold; moving beyond a small threshold or
+  // lifting early cancels it and lets the normal tap/scroll happen.
+  let ctxLongPressTimer_ = null;
+  let ctxLongPressRow_ = null;
+  let ctxTouchStartX_ = 0, ctxTouchStartY_ = 0;
+  document.getElementById('tableBody').addEventListener('touchstart', (e)=>{
+    const rec = e.target.closest('.rec');
+    if(!rec || !rec.dataset.row) return;
+    if(e.target.closest('.quick-info') || e.target.closest('[data-act]')) return;
+    const touch = e.touches[0];
+    ctxTouchStartX_ = touch.clientX;
+    ctxTouchStartY_ = touch.clientY;
+    ctxLongPressRow_ = Number(rec.dataset.row);
+    clearTimeout(ctxLongPressTimer_);
+    ctxLongPressTimer_ = setTimeout(()=>{
+      ctxLongPressTimer_ = null;
+      if(navigator.vibrate) navigator.vibrate(12);
+      suppressCardClick_ = true;
+      setTimeout(()=>{ suppressCardClick_ = false; }, 500); // fallback in case the click event never fires
+      openCtxMenuFor_(ctxLongPressRow_, ctxTouchStartX_, ctxTouchStartY_);
+    }, 550);
+  }, {passive:true});
+  document.getElementById('tableBody').addEventListener('touchmove', (e)=>{
+    if(!ctxLongPressTimer_) return;
+    const touch = e.touches[0];
+    if(Math.abs(touch.clientX - ctxTouchStartX_) > 10 || Math.abs(touch.clientY - ctxTouchStartY_) > 10){
+      clearTimeout(ctxLongPressTimer_);
+      ctxLongPressTimer_ = null;
+    }
+  }, {passive:true});
+  document.getElementById('tableBody').addEventListener('touchend', ()=>{
+    clearTimeout(ctxLongPressTimer_);
+    ctxLongPressTimer_ = null;
+  });
+  document.getElementById('tableBody').addEventListener('touchcancel', ()=>{
+    clearTimeout(ctxLongPressTimer_);
+    ctxLongPressTimer_ = null;
+  });
 
   function saveViewState_(){
     if(!currentSheet) return;
