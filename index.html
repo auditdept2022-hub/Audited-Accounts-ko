@@ -1721,7 +1721,7 @@
   // and saved but not re-deployed via Deploy > Manage deployments >
   // pencil icon > New version — this shows a small warning banner
   // instead of silently running the dashboard against old backend code.
-  const APP_VERSION = '2026-09-04.8';
+  const APP_VERSION = '2026-09-04.11';
   let versionBannerShown_ = false;
   function checkVersionSync_(backendVersion){
     if(!backendVersion || backendVersion === APP_VERSION || versionBannerShown_) return;
@@ -3223,10 +3223,11 @@
       item => item.customer,
       true
     );
-    await finalizeImportFormatting_();
+    const formattingOk = await finalizeImportFormatting_();
 
     const updated = updateResult.succeeded, failed = updateResult.failed;
-    toast(`Import complete: ${updated} updated${failed ? ', ' + failed + ' failed' : ''}${unmatched ? ', ' + unmatched + ' skipped (no match)' : ''}.`);
+    toast(`Import complete: ${updated} updated${failed ? ', ' + failed + ' failed' : ''}${unmatched ? ', ' + unmatched + ' skipped (no match)' : ''}`
+      + (formattingOk ? '.' : '. Column widths may look off — use ⚙️ Tools > "Wrap & auto-fit" in the sheet to fix.'));
     addNotification_(
       `Import Remarks: ${updated} matched${engineOnlyRows ? ' (' + engineOnlyRows + ' by engine no.)' : ''}${failed ? ', ' + failed + ' failed' : ''}${unmatched ? ', ' + unmatched + ' unmatched' : ''}.`,
       failed > 0,
@@ -3554,12 +3555,13 @@
       item => item.fields.customer,
       true
     );
-    await finalizeImportFormatting_();
+    const formattingOk = await finalizeImportFormatting_();
 
     const created = createResult.succeeded, updated = updateResult.succeeded;
     const failed = createResult.failed + updateResult.failed;
     const failedNames = createResult.failedNames.concat(updateResult.failedNames);
-    toast(`Import complete: ${created} added${updated ? ', ' + updated + ' refreshed' : ''}${failed ? ', ' + failed + ' failed' : ''}.`);
+    toast(`Import complete: ${created} added${updated ? ', ' + updated + ' refreshed' : ''}${failed ? ', ' + failed + ' failed' : ''}`
+      + (formattingOk ? '.' : '. Column widths may look off — use ⚙️ Tools > "Wrap & auto-fit" in the sheet to fix.'));
     const groups = groupByStatus_(
       toCreate.map(item => ({ customer: item.customer, unitAccountStatus: item.unitAccountStatus }))
         .concat(toUpdate.map(item => ({ customer: item.fields.customer, unitAccountStatus: item.fields.unitAccountStatus })))
@@ -3591,8 +3593,17 @@
   // effort — a failure here is just cosmetic (columns stay whatever
   // width they were), so it never blocks the "import complete" toast.
   async function finalizeImportFormatting_(){
-    try{ await apiCallJson_('finalizeFormatting', {}); }
-    catch(err){ console.warn('finalizeFormatting failed (non-fatal):', err); }
+    // Retries once — this is a network call like any other, and a
+    // single dropped request used to mean column widths silently stayed
+    // wrong for the rest of the branch's life until someone happened to
+    // run the manual "Wrap & auto-fit" menu item. Returns true/false so
+    // callers can tell the user when it didn't work, instead of the
+    // failure being invisible in the console only.
+    for(let attempt = 0; attempt < 2; attempt++){
+      try{ await apiCallJson_('finalizeFormatting', {}); return true; }
+      catch(err){ console.warn('finalizeFormatting failed (attempt ' + (attempt + 1) + '):', err); }
+    }
+    return false;
   }
 
   // Apps Script Web Apps enforce a hard ceiling on total request-URL length
