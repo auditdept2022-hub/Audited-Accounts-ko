@@ -1721,7 +1721,7 @@
   // and saved but not re-deployed via Deploy > Manage deployments >
   // pencil icon > New version — this shows a small warning banner
   // instead of silently running the dashboard against old backend code.
-  const APP_VERSION = '2026-09-04.13';
+  const APP_VERSION = '2026-09-04.14';
   let versionBannerShown_ = false;
   function checkVersionSync_(backendVersion){
     if(!backendVersion || backendVersion === APP_VERSION || versionBannerShown_) return;
@@ -4495,7 +4495,12 @@
     try{
       const data = await apiCallJson_('listSheets', {});
       checkVersionSync_(data.backendVersion);
-      profilesCache_ = data.sheets || [];
+      // New branches (createSheet) get appended as the LAST tab in the
+      // spreadsheet, so the backend's order is oldest-first. Reverse it
+      // here so this list shows newest-created branch at the top —
+      // "Branch Profiles" is meant to be new-to-old, unlike the tab
+      // strip at the bottom of the sheet which stays in creation order.
+      profilesCache_ = (data.sheets || []).slice().reverse();
       saveSheetsCache_(profilesCache_);
       renderProfileList_(profilesCache_);
     }catch(err){
