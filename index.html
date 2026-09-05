@@ -7788,6 +7788,45 @@
     }
   });
 
+  // ---- Global error safety net -------------------------------------------
+  // Catches JS errors and rejected promises that would otherwise fail
+  // silently (console-only), which is especially risky in an offline-sync
+  // app: a swallowed error during a save/sync could look like "it worked"
+  // when it didn't. Surfaces them as notifications instead, using the
+  // existing notification panel/badge so nothing new needs to be built.
+  // Throttled per-message so a repeating error (e.g. one that fires on
+  // every render tick) doesn't flood the notification list.
+  const reportedErrors_ = new Map(); // message -> last-reported timestamp
+  const ERROR_REPORT_COOLDOWN_MS = 30000;
+
+  function reportUnexpectedError_(message){
+    try{
+      const now = Date.now();
+      const last = reportedErrors_.get(message) || 0;
+      if(now - last < ERROR_REPORT_COOLDOWN_MS) return;
+      reportedErrors_.set(message, now);
+      // notifications_ may not be loaded yet if this fires very early
+      // (e.g. during boot, before loadNotifications_ runs) — addNotification_
+      // still works in that case, it just starts from an empty list.
+      addNotification_('Unexpected error: ' + message, true);
+    }catch(e){
+      // Never let the error-reporting path itself throw — that would be
+      // an infinite loop waiting to happen (error while reporting an error).
+    }
+  }
+
+  window.addEventListener('error', (e) => {
+    const msg = (e && e.message) ? e.message : 'Unknown script error';
+    const loc = (e && e.filename) ? (' (' + e.filename.split('/').pop() + ':' + e.lineno + ')') : '';
+    reportUnexpectedError_(msg + loc);
+  });
+
+  window.addEventListener('unhandledrejection', (e) => {
+    const reason = e && e.reason;
+    const msg = (reason && reason.message) ? reason.message : String(reason || 'Unknown promise rejection');
+    reportUnexpectedError_(msg);
+  });
+
   // Boot
   if(API_URL){
     loadNotifications_();
