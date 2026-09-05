@@ -1721,7 +1721,7 @@
   // and saved but not re-deployed via Deploy > Manage deployments >
   // pencil icon > New version — this shows a small warning banner
   // instead of silently running the dashboard against old backend code.
-  const APP_VERSION = '2026-09-04.14';
+  const APP_VERSION = '2026-09-04.15';
   let versionBannerShown_ = false;
   function checkVersionSync_(backendVersion){
     if(!backendVersion || backendVersion === APP_VERSION || versionBannerShown_) return;
@@ -2606,6 +2606,30 @@
   }
 
   function genId_(){ return 'o' + Date.now() + Math.random().toString(36).slice(2, 8); }
+
+  // ---- Duplicate detection (Customer Name / Engine No, same branch) -----
+  //
+  // Scans the currently loaded `customers` list (same branch only — each
+  // branch is its own sheet/list) for a row whose Customer Name or Engine
+  // No matches the given values, case-insensitively and trimmed. A blank
+  // Engine No never counts as a match against another blank one. Used to
+  // WARN before saving a new/edited customer — it never blocks the save
+  // by itself, since legitimate same-name customers do happen; it just
+  // gives the person a chance to catch an accidental double-entry.
+  // excludeRow lets an edit skip matching against its own row.
+  function findDuplicateCustomer_(customerName, engineNo, excludeRow){
+    const nameKey = String(customerName || '').trim().toLowerCase();
+    const engineKey = String(engineNo || '').trim().toLowerCase();
+    if(!nameKey && !engineKey) return null;
+    for(const c of customers){
+      if(excludeRow && c.row === excludeRow) continue;
+      const matchedOn = [];
+      if(nameKey && String(c.customer || '').trim().toLowerCase() === nameKey) matchedOn.push('Customer Name');
+      if(engineKey && String(c.engineNo || '').trim().toLowerCase() === engineKey) matchedOn.push('Engine No');
+      if(matchedOn.length) return { row: c.row, label: c.customer, matchedOn };
+    }
+    return null;
+  }
 
   // Snapshots of the current-remark / history text as last painted into
   // the edit modal's textareas, taken in openEditModal(). saveModal()
@@ -3495,7 +3519,25 @@
       }
     });
 
-    return { toUpdate, toCreate, duplicateNameRows };
+    // Duplicate detection (posibleng double-entry sa import): the
+    // matching above only catches a new row that collides with an
+    // EXISTING customer (those go to toUpdate instead). It doesn't catch
+    // two rows in the SAME file that share a Customer Name (or Customer
+    // Name + Engine No, when an engine no. is present) but match no
+    // existing customer — those all land in toCreate as if they were
+    // separate people, which is exactly how an accidental double-entry
+    // in the source file turns into two rows on the sheet. Group toCreate
+    // by that same key so the import can warn about it before writing.
+    const createGroups = {};
+    toCreate.forEach(item => {
+      const nameKey = normalizeName_(item.customer);
+      const engKey = normalizeEngine_(item.engineNo);
+      const key = engKey ? (nameKey + '|' + engKey) : nameKey;
+      (createGroups[key] = createGroups[key] || []).push(item.customer || '(blank name)');
+    });
+    const duplicateCreateGroups = Object.values(createGroups).filter(g => g.length > 1);
+
+    return { toUpdate, toCreate, duplicateNameRows, duplicateCreateGroups };
   }
 
   // Groups a set of {customer, unitAccountStatus} rows by status, for a
@@ -3521,13 +3563,15 @@
     const allRecords = await parseAccountsFiles_(fileList);
     if(!allRecords.length){ toast('No account rows found to import.'); return; }
 
-    const { toUpdate, toCreate, duplicateNameRows } = splitAccountsForImport_(allRecords);
+    const { toUpdate, toCreate, duplicateNameRows, duplicateCreateGroups } = splitAccountsForImport_(allRecords);
     if(!toUpdate.length && !toCreate.length){ toast('Found rows, but nothing usable to import.'); return; }
 
+    const dupCreateCount = duplicateCreateGroups.reduce((n, g) => n + g.length, 0);
     const msg = `Found ${allRecords.length} account${allRecords.length === 1 ? '' : 's'} in the file: `
       + `${toCreate.length} new account${toCreate.length === 1 ? '' : 's'} will be added`
       + `, ${toUpdate.length} existing account${toUpdate.length === 1 ? '' : 's'} will be refreshed (customer info & status)`
       + (duplicateNameRows ? `. ${duplicateNameRows} name${duplicateNameRows === 1 ? '' : 's'} had no engine number to disambiguate and matched more than one account — all of them will be updated` : '')
+      + (dupCreateCount ? `. \u26A0\uFE0F ${dupCreateCount} of the new accounts share the same Customer Name/Engine No as another new row in this file — possible double-entry: ` + duplicateCreateGroups.map(g => g[0] + ' \u00d7' + g.length).join(', ') : '')
       + '. Outstanding Balance and Date of Last Payment will be left blank for all of them (new and existing) — fill in the current figures manually afterward. Remarks / Old Remarks / Date of Audit are never touched. Accounts on the dashboard that aren\u2019t in this file are left alone (never deleted). Continue?';
     if(!confirm(msg)) return;
 
@@ -3572,9 +3616,19 @@
     if(failedNames.length){
       groups.unshift({ label: 'Failed to import', names: failedNames, isUnmatched: true });
     }
+    // Surface the same-file duplicate warning (see splitAccountsForImport_)
+    // in the saved notification too, not just the one-time confirm dialog
+    // — so it stays checkable afterward if the import was let through.
+    if(dupCreateCount){
+      groups.unshift({
+        label: 'Possible duplicates in this file (\u26A0\uFE0F check before relying on these)',
+        names: duplicateCreateGroups.map(g => g[0] + ' \u00d7' + g.length),
+        isUnmatched: true
+      });
+    }
     addNotification_(
-      `Import Accounts: ${created} added, ${updated} matched/refreshed${failed ? ', ' + failed + ' failed' : ''}.`,
-      failed > 0,
+      `Import Accounts: ${created} added, ${updated} matched/refreshed${failed ? ', ' + failed + ' failed' : ''}${dupCreateCount ? ', ' + dupCreateCount + ' possible duplicate(s)' : ''}.`,
+      failed > 0 || dupCreateCount > 0,
       { groups: groups }
     );
     document.getElementById('importStatus').textContent = '';
@@ -7566,6 +7620,34 @@
     const fields = collectFieldValues();
     fields.marker = modalMarkerColor_;
     if(modalMode === 'create' && !fields.customer){ toast('Customer name is required.'); return; }
+
+    // Required-field check (bago i-save): a brand-new customer needs MA
+    // and Outstanding Balance filled in, so they can't slip through
+    // blank on a new account. Only enforced on create — an edit only
+    // touches the fields it's given, so this would wrongly block a save
+    // that legitimately isn't touching MA/Outstanding Balance.
+    if(modalMode === 'create'){
+      const missingFields = [];
+      if(fields.ma === undefined || fields.ma === ''){ missingFields.push('MA'); }
+      if(fields.outstandingBalance === undefined || fields.outstandingBalance === ''){ missingFields.push('Outstanding Balance'); }
+      if(missingFields.length){
+        toast('Please fill in ' + missingFields.join(' and ') + ' before saving.');
+        return;
+      }
+    }
+
+    // Duplicate detection: warn (don't block outright) if another row in
+    // this branch already has the same Customer Name or the same Engine
+    // No — the usual real-world cause is a repeated manual entry or the
+    // same row getting imported/typed twice.
+    const dup = findDuplicateCustomer_(fields.customer, fields.engineNo, modalMode === 'edit' ? activeRow : null);
+    if(dup){
+      const proceed = confirm(
+        'Possible duplicate: "' + dup.label + '" (row ' + dup.row + ') already has the same ' +
+        dup.matchedOn.join(' and ') + '. Save this anyway?'
+      );
+      if(!proceed) return;
+    }
 
     const btn = document.getElementById('saveBtn');
     btn.disabled = true;
