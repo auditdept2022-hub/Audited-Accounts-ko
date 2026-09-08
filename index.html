@@ -1714,7 +1714,7 @@
     <div class="modal-foot">
       <div class="left">
         <button class="btn" onclick="previewDraftReport_()">Preview</button>
-        <button class="btn" onclick="downloadDraftReportDocx_()">Download .docx</button>
+        <button class="btn" onclick="downloadDraftReportDocx_(event)">Download .docx</button>
       </div>
       <div class="right">
         <button class="btn" onclick="closeDraftReport_()">Close</button>
@@ -1745,7 +1745,7 @@
     </div>
     <div class="modal-foot">
       <div class="left">
-        <button class="btn" onclick="downloadDraftReportDocx_()">Download .docx</button>
+        <button class="btn" onclick="downloadDraftReportDocx_(event)">Download .docx</button>
       </div>
       <div class="right">
         <button class="btn" onclick="closeDraftPreview_()">Close</button>
@@ -1880,7 +1880,7 @@
   // and saved but not re-deployed via Deploy > Manage deployments >
   // pencil icon > New version — this shows a small warning banner
   // instead of silently running the dashboard against old backend code.
-  const APP_VERSION = '2026-09-04.15';
+  const APP_VERSION = '2026-09-08.4';
   let versionBannerShown_ = false;
   function checkVersionSync_(backendVersion){
     if(!backendVersion || backendVersion === APP_VERSION || versionBannerShown_) return;
@@ -4257,13 +4257,12 @@
   const NOTIF_MAX = 50;
 
   // ---- Draft report modal ---------------------------------------------
-  // Categorized, editable version of DRAFT_REPORT_.docx — this structure
+  // Categorized, editable version of the draft report — this structure
   // (Branch checklist / Field checklist / Findings / sign-off) is the
-  // permanent in-app format for the draft report going forward. The
-  // original .docx is kept alongside this file purely as a downloadable
-  // export target (see downloadDraftReportDocx_ below).
-  const DRAFT_REPORT_URL = 'DRAFT_REPORT_.docx';
-
+  // permanent in-app format going forward. Download .docx now generates a
+  // real .docx from this same data on the backend (see
+  // downloadDraftReportDocx_ / Code.gs: generateDraftReportDocx) instead of
+  // serving a static file.
   const DRAFT_REPORT_CHECKLIST = {
     branch: [
       'Cleanliness of the branch is well observed, and they are responsible to maintain the cleanliness of their workplace.',
@@ -4444,16 +4443,59 @@
     document.getElementById('draftPreviewOverlay').style.display = 'none';
   }
 
-  // Exports the original formatted .docx (letterhead, numbering, etc.)
-  // rather than the in-app checklist state — the categorized modal above
-  // is for quick review/fill-in, the .docx is the polished deliverable.
-  function downloadDraftReportDocx_(){
-    const a = document.createElement('a');
-    a.href = DRAFT_REPORT_URL;
-    a.download = 'DRAFT_REPORT_.docx';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+  // Generates a real .docx on the backend (Code.gs: generateDraftReportDocx),
+  // built from the SAME data the Preview shows, so what you see in Preview
+  // is what actually downloads. Uses a plain POST (not apiCall's GET+query
+  // string) since findings/checklist text can be long enough to exceed a
+  // safe URL length.
+  async function generateDraftReportDocxRemote_(data){
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify(Object.assign({ action: 'generateDraftReportDocx' }, data))
+    });
+    return await parseJsonResponse_(res);
+  }
+
+  async function downloadDraftReportDocx_(evt){
+    const branch = document.getElementById('draftBranch').value.trim();
+    const date = document.getElementById('draftDate').value;
+    const dateDisplay = date ? new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase() : '';
+    const branchItems = draftEditableListValues_('draftChecklistBranch');
+    const fieldItems = draftEditableListValues_('draftChecklistField');
+    const findings = draftFindingsValues_().filter(f => f.trim());
+    const preparedBy = document.getElementById('draftPreparedBy').value.trim();
+
+    const btn = evt && evt.target;
+    const originalLabel = btn ? btn.textContent : null;
+    try{
+      if(btn){ btn.disabled = true; btn.textContent = 'Generating…'; }
+
+      const data = await generateDraftReportDocxRemote_({
+        branch: branch, dateDisplay: dateDisplay, branchItems: branchItems,
+        fieldItems: fieldItems, findings: findings, preparedBy: preparedBy
+      });
+      if(data.error) throw new Error(data.error);
+
+      const byteChars = atob(data.base64);
+      const byteNumbers = new Array(byteChars.length);
+      for(let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([new Uint8Array(byteNumbers)], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = data.filename || 'DRAFT_REPORT.docx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }catch(err){
+      toast('Could not generate the .docx: ' + err.message);
+    }finally{
+      if(btn){ btn.disabled = false; btn.textContent = originalLabel || 'Download .docx'; }
+    }
   }
 
   function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
