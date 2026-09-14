@@ -1309,25 +1309,34 @@
        spacing to actually read comfortably. This block only fires
        under 640px — the desktop rules above are untouched. ---- */
     .topband{
-      padding:calc(18px + var(--safe-t)) 14px 18px;
-      gap:8px 12px;
+      padding:calc(18px + var(--safe-t)) 10px 18px;
+      gap:6px 8px;
     }
-    .brand{gap:10px;min-width:0;}
-    /* Fixed wordmark ("AUDITED ACCOUNTS") — a flat 17px was getting
-       clipped into "ACCOUN…" on narrower phones once the header icons
-       and hamburger button ate into the remaining width. Scaling the
-       size to the viewport (clamp with a vw component) keeps the whole
-       wordmark visible instead of truncating it; the ellipsis stays
-       only as a last-resort safety net for extreme widths. */
-    .brand .mark{font-size:clamp(12px, 4.2vw, 17px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .hdr-actions{gap:8px;}
+    .brand{gap:6px;min-width:0;}
+    /* Wordmark ("AUDITED ACCOUNTS") stays on one line on phones —
+       instead of stacking it or letting it ellipsize, both the text
+       and the header icons shrink together so the full phrase always
+       fits. The icons/hamburger below are sized down with selectors
+       specific enough to also override the touch-target minimums
+       further down (e.g. ".topband .hamburger-btn" beats the plain
+       ".hamburger-btn" rule regardless of source order), so they don't
+       silently snap back to their larger touch-friendly size. */
+    .brand .mark{font-size:clamp(10px, 3.6vw, 14px);letter-spacing:.2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .topband .hamburger-btn{width:32px;height:32px;padding:0;}
+    .topband .hamburger-btn .brand-logo-icon{width:19px;height:19px;}
+    .hdr-actions{gap:6px;}
+    .topband .notif-btn{width:30px;height:30px;}
+    .topband .draft-report-btn{width:30px;height:30px;}
     .home-reset-btn{
-      padding:0;width:34px;height:34px;justify-content:center;border-radius:50%;
-      font-size:11px;
+      padding:0;width:30px;height:30px;justify-content:center;border-radius:50%;
+      font-size:10px;
     }
     .home-reset-btn span{display:none;}
 
-    .hdr-status-rows{gap:5px;flex-basis:calc(100% - 55px);margin-left:55px;}
+    /* 38px offset = shrunk hamburger (32px) + brand gap (6px), so
+       row 2 still lines up under the wordmark instead of the old
+       55px offset, which was sized for the larger desktop-ish icons. */
+    .hdr-status-rows{gap:5px;flex-basis:calc(100% - 38px);margin-left:38px;}
     .sub-row{font-size:11px;gap:6px;row-gap:5px;}
     .hdr-status-rows .sub{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50vw;}
     .hdr-status{font-size:11px;}
