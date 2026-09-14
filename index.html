@@ -428,12 +428,12 @@
   .scrub-thumb{position:absolute;left:50%;top:0;transform:translateX(-50%);width:6px;border-radius:5px;background:linear-gradient(180deg,var(--accent),var(--ink));opacity:.5;box-shadow:0 1px 3px rgba(16,22,60,.35);transition:opacity .15s ease,width .15s ease;}
   .scrub-track.dragging .scrub-thumb{opacity:.95;width:11px;}
   .toolbar::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--gold);}
-  .toolbar .left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-  .toolbar .right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .toolbar .left{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .toolbar .right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .toolbar-divider{width:1px;align-self:stretch;min-height:24px;background:var(--line);flex-shrink:0;}
   #viewModeBtn.dark{background:#fff;color:var(--ink);border-color:var(--ink);}
   #viewModeBtn.dark:hover{background:var(--accent-soft);}
-  .filter-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#F7F8FD;border:1px solid var(--line);border-radius:10px;padding:6px 8px;}
+  .filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#F7F8FD;border:1px solid var(--line);border-radius:10px;padding:5px 7px;}
   /* Search sits in its own full-width row, always last — on desktop
      AND mobile — instead of squeezed in next to the filters where it
      used to fight them for space. Order:1 (higher than the left/right
@@ -1275,12 +1275,21 @@
     .toolbar-toggle:hover{background:#F4F5FB;color:var(--text);}
     .toolbar-toggle.open{transform:rotate(180deg);color:var(--accent);border-color:#B9C4EE;background:var(--accent-soft);}
     .toolbar-extra{display:none;order:2;width:100%;}
-    .toolbar-extra.open{display:flex;flex-direction:column;gap:10px;padding-top:10px;border-top:1px solid var(--line);margin-top:2px;}
+    .toolbar-extra.open{display:flex;flex-direction:column;gap:8px;padding-top:8px;border-top:1px solid var(--line);margin-top:2px;}
     .toolbar .left, .filter-row{
-      display:flex;flex-wrap:wrap;gap:8px;width:100%;
+      display:flex;flex-wrap:wrap;gap:6px;width:100%;
     }
     .toolbar .left .btn, .filter-row .btn{flex:0 0 auto;width:auto;white-space:nowrap;justify-content:center;margin:0;}
     .filter-row > div{min-width:0;flex:0 0 auto;}
+    /* The divider between .left and .right is a vertical rule meant to
+       sit between two side-by-side desktop columns — once .filter-row
+       above is forced to width:100% for this collapsed mobile layout,
+       the divider has nothing to sit beside any more and just occupies
+       its own near-empty row (a sliver of a line plus the flex gap on
+       both sides of it), which is exactly the blank band seen between
+       the icon-only button row and "All status" below it. Hidden here
+       since it serves no purpose once everything stacks vertically. */
+    .toolbar-divider{display:none;}
   }
 
   /* ---------- Responsive: phone ---------- */
@@ -1304,7 +1313,13 @@
       gap:8px 12px;
     }
     .brand{gap:10px;min-width:0;}
-    .brand .mark{font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    /* Fixed wordmark ("AUDITED ACCOUNTS") — a flat 17px was getting
+       clipped into "ACCOUN…" on narrower phones once the header icons
+       and hamburger button ate into the remaining width. Scaling the
+       size to the viewport (clamp with a vw component) keeps the whole
+       wordmark visible instead of truncating it; the ellipsis stays
+       only as a last-resort safety net for extreme widths. */
+    .brand .mark{font-size:clamp(12px, 4.2vw, 17px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .hdr-actions{gap:8px;}
     .home-reset-btn{
       padding:0;width:34px;height:34px;justify-content:center;border-radius:50%;
@@ -1330,8 +1345,8 @@
        above and cascades down to this narrower width — only phone-
        specific padding/spacing is layered on top here. */
     .toolbar{
-      padding:12px;
-      gap:10px;
+      padding:10px;
+      gap:8px;
     }
     .toolbar .input{min-width:0;width:100%;}
 
@@ -1482,7 +1497,7 @@
         <div class="left">
           <button class="btn" onclick="document.getElementById('importAccountsInput').click()" title="Import an STA-style account report (.xls/.xlsx), the kind with grouped sections like &quot;BNEW - OD&quot; instead of a plain status column. Reads Customer, Model, Engine No, Release/Rstr Date, Due Date, Terms, MA &amp; Beg Bal, and turns each section header into that row's Unit/Account status (e.g. section &quot;BNEW - OD&quot; → status &quot;OD - BN&quot;). Existing accounts (matched by name + engine no.) are refreshed with this info; accounts not already on the list are added as new. Outstanding Balance / Date of Last Payment are always reset by this import — Remarks / Date of Audit are never touched."><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><polyline points="5 12 12 5 19 12"/><line x1="4" y1="21" x2="20" y2="21"/></svg> Import Accounts</button>
           <input type="file" id="importAccountsInput" accept=".csv,.xls,.xlsx" multiple style="display:none">
-          <button class="btn" onclick="document.getElementById('importRemarksInput').click()" title="Import CSV or Excel (.xls/.xlsx) files. Matches customers by name (and engine no. when the file has one). Takes ONLY the customer name and a Remarks/Remarks column and adds each one as a new line directly into Old Remarks (no date stamp). The current Remarks and Date of Audit are never touched. Any balance columns in the file are ignored. Existing customers only; unmatched rows are skipped, never added."><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><polyline points="5 12 12 5 19 12"/><line x1="4" y1="21" x2="20" y2="21"/></svg> Import Remarks</button>
+          <button class="btn" onclick="document.getElementById('importRemarksInput').click()" title="Import CSV or Excel (.xls/.xlsx) files. Matches customers by name (and engine no. when the file has one). Takes ONLY the customer name and a Remarks/Remarks column and adds each one as a new line directly into Old Remarks (no date stamp). The current Remarks and Date of Audit are never touched. Any balance columns in the file are ignored. Existing customers only; unmatched rows are skipped, never added."><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Import Remarks</button>
           <input type="file" id="importRemarksInput" accept=".csv,.xls,.xlsx" multiple style="display:none">
           <span id="importStatus" class="import-status"></span>
           <button class="btn icon-only" onclick="exportCSV()" title="Export all customers to an Excel (.xlsx) file, with columns sized to fit"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
@@ -1494,7 +1509,7 @@
           <span class="toolbar-divider"></span>
           <div class="filter-row">
             <div class="view-switch">
-              <button class="btn dark" id="viewModeBtn" onclick="toggleViewMenu_(event)" title="Choose how much detail each customer card shows"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Full details</button>
+              <button class="btn dark icon-only" id="viewModeBtn" onclick="toggleViewMenu_(event)" title="Full details — choose how much detail each customer card shows"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="15" y2="12"/><line x1="4" y1="18" x2="10" y2="18"/></svg></button>
               <div class="view-menu" id="viewMenu">
                 <button class="view-option" data-mode="full" data-act="view-set">
                   <span class="vo-title">Full details</span>
@@ -1876,6 +1891,7 @@
     print:    '<svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
     check:    '<svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
     eye:      '<svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+    density:  '<svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="15" y2="12"/><line x1="4" y1="18" x2="10" y2="18"/></svg>',
     trash:    '<svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
     close:    '<svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
     edit:     '<svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
@@ -2003,7 +2019,13 @@
     const list = document.getElementById('tableBody');
     list.classList.remove('view-full', 'view-compact', 'view-minimal');
     list.classList.add('view-' + viewMode);
-    document.getElementById('viewModeBtn').innerHTML = ICONS.eye + ' ' + VIEW_MODE_LABELS[viewMode];
+    // Icon-only trigger now (see buildFieldGrid-style rationale in the
+    // markup comment above) — the current mode is still surfaced via the
+    // title tooltip and via the checkmark on the active option inside
+    // the dropdown itself, so nothing is lost, just not shown inline.
+    const viewBtn = document.getElementById('viewModeBtn');
+    viewBtn.innerHTML = ICONS.density;
+    viewBtn.title = VIEW_MODE_LABELS[viewMode] + ' — choose how much detail each customer card shows';
     document.querySelectorAll('.view-option').forEach(b=>{
       b.classList.toggle('active', b.dataset.mode === viewMode);
     });
