@@ -1309,8 +1309,8 @@
        spacing to actually read comfortably. This block only fires
        under 640px — the desktop rules above are untouched. ---- */
     .topband{
-      padding:calc(4px + var(--safe-t)) 10px 4px;
-      gap:1px 8px;
+      padding:calc(18px + var(--safe-t)) 10px 18px;
+      gap:6px 8px;
     }
     /* Collapse the sync-status line entirely when its text is empty
        (see updateActiveProfileLabel_ / connStatus in JS, which now
@@ -1323,32 +1323,36 @@
     /* Wordmark ("AUDITED ACCOUNTS") stays on one line on phones —
        instead of stacking it or letting it ellipsize, both the text
        and the header icons shrink together so the full phrase always
-       fits. The icons/hamburger below are sized down with selectors
-       specific enough to also override the touch-target minimums
-       further down (e.g. ".topband .hamburger-btn" beats the plain
-       ".hamburger-btn" rule regardless of source order), so they don't
-       silently snap back to their larger touch-friendly size. */
-    .brand .mark{font-family:'Inter', sans-serif;font-size:clamp(10px, 3.4vw, 13px);letter-spacing:-.3px;line-height:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .topband .hamburger-btn{width:28px;height:28px;padding:0;}
-    .topband .hamburger-btn .brand-logo-icon{width:16px;height:16px;}
-    .hdr-actions{gap:5px;}
-    .topband .notif-btn{width:26px;height:26px;}
-    .topband .draft-report-btn{width:26px;height:26px;}
+       fits. Font switched from the monospace Courier New (desktop)
+       to a regular sans-serif here with tight letter-spacing/line-
+       height, since monospace characters read as "spaced out" no
+       matter what letter-spacing is set to. The icons/hamburger below
+       are sized down with selectors specific enough to also override
+       the touch-target minimums further down (e.g. ".topband
+       .hamburger-btn" beats the plain ".hamburger-btn" rule
+       regardless of source order), so they don't silently snap back
+       to their larger touch-friendly size. */
+    .brand .mark{font-family:'Inter', sans-serif;font-size:clamp(10px, 3.6vw, 14px);letter-spacing:-.3px;line-height:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .topband .hamburger-btn{width:32px;height:32px;padding:0;}
+    .topband .hamburger-btn .brand-logo-icon{width:19px;height:19px;}
+    .hdr-actions{gap:6px;}
+    .topband .notif-btn{width:30px;height:30px;}
+    .topband .draft-report-btn{width:30px;height:30px;}
     .home-reset-btn{
-      padding:0;width:26px;height:26px;justify-content:center;border-radius:50%;
-      font-size:9px;
+      padding:0;width:30px;height:30px;justify-content:center;border-radius:50%;
+      font-size:10px;
     }
     .home-reset-btn span{display:none;}
 
-    /* 34px offset = shrunk hamburger (28px) + brand gap (6px), so
+    /* 38px offset = shrunk hamburger (32px) + brand gap (6px), so
        row 2 still lines up under the wordmark instead of the old
        55px offset, which was sized for the larger desktop-ish icons. */
-    .hdr-status-rows{gap:1px;flex-basis:calc(100% - 34px);margin-left:34px;}
-    .sub-row{font-size:10px;gap:5px;row-gap:0;line-height:1.15;}
-    .hdr-status-rows .sub{font-size:11px;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50vw;}
-    .hdr-status{font-size:10px;line-height:1.15;}
-    .sub-row-sync{row-gap:0;}
-    .sub-row-sync .hdr-status{font-size:9.5px;line-height:1.2;white-space:normal;overflow-wrap:anywhere;}
+    .hdr-status-rows{gap:5px;flex-basis:calc(100% - 38px);margin-left:38px;}
+    .sub-row{font-size:11px;gap:6px;row-gap:5px;line-height:1.15;}
+    .hdr-status-rows .sub{font-size:12.5px;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50vw;}
+    .hdr-status{font-size:11px;line-height:1.15;}
+    .sub-row-sync{row-gap:4px;}
+    .sub-row-sync .hdr-status{font-size:10.5px;line-height:1.2;white-space:normal;overflow-wrap:anywhere;}
     .import-status{display:none;}
     #pendingWrap{display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px;}
     #pendingWrap, #pendingWrap button{font-size:10.5px;}
