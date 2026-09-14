@@ -6725,19 +6725,16 @@
         if(isHidden_(c.row)) return false;
       }
       if(q){
-        // Customer name: prefix match only — starts typing "L" and only
-        // names that actually start with "L" show up (e.g. LASAY, LAO,
-        // LOMATAO), instead of pulling in every customer whose name merely
-        // contains that letter anywhere.
-        // Model / engine no.: substring match — these aren't things people
-        // "start" a search with the same way (e.g. searching part of an
-        // engine no.), so a contains-match is more useful there. The box's
-        // placeholder promises all three ("Search customer, model, engine
-        // no...") so all three actually need to be checked.
+        // Customer name, model, engine no.: all three are substring
+        // matches — any customer whose name, model, or engine no.
+        // contains the typed text anywhere shows up, not just names
+        // that start with it. The box's placeholder promises all three
+        // ("Search customer, model, engine no...") so all three
+        // actually need to be checked.
         const name = str_(c.customer).toLowerCase();
         const model = str_(c.model).toLowerCase();
         const engineNo = str_(c.engineNo).toLowerCase();
-        const matches = name.indexOf(q) === 0 || model.indexOf(q) !== -1 || engineNo.indexOf(q) !== -1;
+        const matches = name.indexOf(q) !== -1 || model.indexOf(q) !== -1 || engineNo.indexOf(q) !== -1;
         if(!matches) return false;
       }
       // Status/remarks filters are skipped entirely while browsing the
