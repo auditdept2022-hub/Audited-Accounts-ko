@@ -573,7 +573,16 @@
   .rec-remarks .rline{display:flex;gap:10px;font-size:12px;line-height:1.6;}
   .rec-remarks .rline + .rline{margin-top:8px;padding-top:8px;border-top:1px dashed #E2E5F5;}
   .rec-remarks .rdate{flex-shrink:0;font-size:9.5px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.3px;font-family:'Inter',sans-serif;white-space:nowrap;}
-  .rtag{display:inline-block;font-size:8.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:1px 6px;border-radius:20px;margin-left:2px;vertical-align:middle;}
+  /* Current/Previous remark tags used to be text pills ("CURRENT",
+     "PREVIOUS") — on narrow phones "PREVIOUS" alone ate ~70-80px of
+     the line before any remark text even started, forcing extra wraps
+     for what's usually the longest content on the card. Now a small
+     round icon badge instead (right arrow = current/latest, left
+     arrow = previous/older) — same color coding, a fraction of the
+     width. title/aria-label keep the meaning available on hover/
+     screen readers since the word is gone from the visible badge. */
+  .rtag{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:18px;height:18px;border-radius:50%;margin-left:2px;vertical-align:middle;}
+  .rtag svg{width:11px;height:11px;}
   .rtag-current{background:var(--ok-soft);color:var(--ok);}
   .rtag-prev{background:var(--muted-2);color:#fff;}
   .rec-remarks .rtext{color:var(--text);}
@@ -987,6 +996,26 @@
   .fc-money-wrap{display:flex;align-items:center;gap:3px;}
   .fc-peso{font-size:13px;font-weight:700;color:var(--muted);font-family:'JetBrains Mono',monospace;flex-shrink:0;}
   .fc-money-wrap .fc-input{flex:1 1 auto;min-width:0;}
+  /* Editable date fields (e.g. Date of Last Payment): the native
+     <input type="date"> stays exactly where it is — it's still what
+     actually holds the value and pops the picker — but its own text
+     ("12/18/2024") is made transparent so an overlay span can show the
+     same "December 21, 2023"-style long format the locked date fields
+     use (fc-value / fmtDateDisplay_). The overlay has
+     pointer-events:none so every click/tap still lands on the real
+     input beneath it and opens the calendar as normal; right padding
+     leaves room clear of the input's own picker-icon so the icon stays
+     visible and clickable on top. */
+  .fc-date-wrap{position:relative;}
+  .fc-date-wrap .fc-date-native{position:relative;z-index:1;color:transparent;}
+  .fc-date-wrap .fc-date-native::-webkit-datetime-edit,
+  .fc-date-wrap .fc-date-native::-webkit-datetime-edit-fields-wrapper,
+  .fc-date-wrap .fc-date-native::-webkit-datetime-edit-text,
+  .fc-date-wrap .fc-date-native::-webkit-datetime-edit-month-field,
+  .fc-date-wrap .fc-date-native::-webkit-datetime-edit-day-field,
+  .fc-date-wrap .fc-date-native::-webkit-datetime-edit-year-field{color:transparent;}
+  .fc-date-display{position:absolute;inset:0;left:0;right:22px;z-index:0;display:flex;align-items:center;font-size:13px;font-weight:700;color:var(--ink);font-family:'Inter',sans-serif;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;pointer-events:none;}
+  .fc-date-display.placeholder{color:var(--muted-2);font-weight:600;}
   .field-card:hover:not(.locked){border-color:#C9D1F2;}
   .field-card:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(42,61,154,.12);}
   .field-group{margin-bottom:18px;}
@@ -1311,12 +1340,24 @@
        mobile-only override is needed here any more — the same JS keeps
        the menu fully on-screen on any width. */
 
-    .rec-list{padding:8px;gap:8px;}
-    .rec{padding:12px 12px 12px 14px;}
-    .rec-top{gap:8px;margin-bottom:10px;padding-bottom:10px;}
+    .rec-list{padding:8px;gap:6px;}
+    .rec{padding:10px 12px 10px 13px;}
+    .rec-top{gap:6px;margin-bottom:7px;padding-bottom:7px;}
     .cust-name{font-size:14px;}
-    .fact-grid{grid-template-columns:repeat(2,1fr);gap:12px 14px;}
+    .fact-grid{grid-template-columns:repeat(2,1fr);gap:8px 14px;margin-bottom:7px;}
+    .fact{gap:1px;}
     .fact .v{font-size:12.5px;white-space:normal;overflow-wrap:anywhere;}
+
+    /* Remarks block is usually the tallest part of a card (current +
+       previous entries can each run several lines), so it gets the
+       most aggressive tightening: smaller padding, a tighter line-
+       height, and less breathing room between the current/previous
+       entries and their date/label lines. Nothing here removes any
+       remark text — only the whitespace around it. */
+    .rec-remarks{padding:9px 11px;margin-top:0;}
+    .rec-remarks .rlabel{margin-bottom:3px;}
+    .rec-remarks .rline{gap:8px;line-height:1.42;}
+    .rec-remarks .rline + .rline{margin-top:6px;padding-top:6px;}
 
     /* Full-screen modals on phone: every popup (profile drawer, preview,
        add/edit customer, etc.) takes the entire viewport instead of a
@@ -6843,7 +6884,7 @@
       <div class="fact-grid">${factsHtml}</div>
       <div class="rec-remarks">
         <div class="rlabel">Remarks</div>
-        <div class="rline"><div class="rdate"><span class="rtag rtag-current">Current</span></div><div class="rtext none">No remarks yet</div></div>
+        <div class="rline"><div class="rdate"><span class="rtag rtag-current" title="Current remark" aria-label="Current remark"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg></span></div><div class="rtext none">No remarks yet</div></div>
       </div>
       <div class="rec-sample-cta">
         <p>This branch doesn\u2019t have any customers yet — the card above shows every field you\u2019ll see once data\u2019s in, all blank for now.</p>
@@ -6941,10 +6982,10 @@
       }
 
       remarksHtml +=
-        `<div class="rline"><div class="rdate">${escapeHtml(fmtDateDisplay_(c.dateOfAudit || ''))} <span class="rtag rtag-current">Current</span></div>` +
+        `<div class="rline"><div class="rdate">${escapeHtml(fmtDateDisplay_(c.dateOfAudit || ''))} <span class="rtag rtag-current" title="Current remark" aria-label="Current remark"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg></span></div>` +
         `<div class="rtext ${hasRemark ? '' : 'none'}">${hasRemark ? escapeHtml(c.remarks) : 'No remarks yet'}</div></div>`;
       for(let j = 0; j < hist.length; j++){
-        remarksHtml += `<div class="rline"><div class="rdate">${escapeHtml(fmtDateDisplay_(hist[j].date || ''))} <span class="rtag rtag-prev">Previous</span></div><div class="rtext">${escapeHtml(hist[j].remark)}</div></div>`;
+        remarksHtml += `<div class="rline"><div class="rdate">${escapeHtml(fmtDateDisplay_(hist[j].date || ''))} <span class="rtag rtag-prev" title="Previous remark" aria-label="Previous remark"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="11 6 5 12 11 18"/></svg></span></div><div class="rtext">${escapeHtml(hist[j].remark)}</div></div>`;
       }
 
       const pendingTag = isConflict
@@ -7265,6 +7306,26 @@
             <div class="fc-money-wrap">
               <span class="fc-peso">₱</span>
               <input class="fc-input fc-money-input" data-key="${f.key}" data-money="1" type="text" inputmode="decimal" value="${escapeHtml(display)}"${ph}>
+            </div>
+          </div>`;
+        }
+
+        if(f.type === 'date'){
+          // Editable date field: the real <input type="date"> is what
+          // holds the value and drives the native picker, but it's
+          // rendered text-transparent (see .fc-date-native CSS) and a
+          // long-format overlay ("December 21, 2023", via
+          // fmtDateDisplay_ — same formatter the locked date fields
+          // use) sits on top of it so typed/edit AND at-rest views
+          // match the rest of the modal. The overlay is kept in sync
+          // by the fieldGrid 'change' handler below whenever a new
+          // date is picked or typed.
+          const displayVal = raw !== '' && raw != null ? fmtDateDisplay_(raw) : '';
+          return `<div class="field-card${spanClass}">
+            <span class="fc-label">${escapeHtml(f.label)}${f.required ? ' *' : ''}</span>
+            <div class="fc-date-wrap">
+              <input class="fc-input fc-date-native" data-key="${f.key}" type="date" value="${escapeHtml(raw)}"${ph}>
+              <span class="fc-date-display${displayVal ? '' : ' placeholder'}">${displayVal ? escapeHtml(displayVal) : 'Select date…'}</span>
             </div>
           </div>`;
         }
@@ -7852,6 +7913,19 @@
   document.getElementById('fieldGrid').addEventListener('change', (e)=>{
     const el = e.target.closest('input[data-key][type="date"]');
     if(!el || el.disabled) return;
+    // Keep the long-format overlay (fc-date-display) in sync with
+    // whatever was just picked/typed into the real, transparent-text
+    // date input sitting underneath it — see the fc-date-wrap markup
+    // in buildFieldGrid().
+    const displayEl = el.parentElement && el.parentElement.classList.contains('fc-date-wrap')
+      ? el.parentElement.querySelector('.fc-date-display')
+      : null;
+    if(displayEl){
+      const val = el.value || '';
+      const formatted = val ? fmtDateDisplay_(val) : '';
+      displayEl.textContent = formatted || 'Select date…';
+      displayEl.classList.toggle('placeholder', !formatted);
+    }
     clearTimeout(fieldAutoSaveTimers_[el.dataset.key]);
     autoSaveField_(el.dataset.key, readFieldElValue_(el));
   });
