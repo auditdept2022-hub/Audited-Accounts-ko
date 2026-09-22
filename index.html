@@ -1772,7 +1772,7 @@
       </div>
 
       <div class="section">
-        <div class="section-title"><span class="section-badge b3">3</span>Branch Evaluation, Concerns, and Findings</div>
+        <div class="section-title"><span class="section-badge b3">3</span>Branch Evaluation/Concerns</div>
         <div class="draft-checklist" id="draftFindingsList"></div>
         <button class="btn draft-findings-add" onclick="addDraftFindingRow_()">+ Add finding</button>
       </div>
@@ -1957,7 +1957,7 @@
   // and saved but not re-deployed via Deploy > Manage deployments >
   // pencil icon > New version — this shows a small warning banner
   // instead of silently running the dashboard against old backend code.
-  const APP_VERSION = '2026-09-08.4';
+  const APP_VERSION = '2026-09-22.2';
   let versionBannerShown_ = false;
   function checkVersionSync_(backendVersion){
     if(!backendVersion || backendVersion === APP_VERSION || versionBannerShown_) return;
@@ -4403,8 +4403,17 @@
       .map(inp => inp.value);
   }
 
+  // Standard boilerplate used whenever the auditor leaves the findings box
+  // empty — mirrors DEFAULT_FINDINGS in Code.gs so Preview and the actual
+  // downloaded .docx always agree.
+  const DEFAULT_FINDINGS_ = [
+    'The branch generally complies with key operational procedures on cash handling, documentation, inventory management, pricing, and collection controls.',
+    'Continue to guide and train new personnel in accordance with company standards and procedures.',
+    'Continue to ensure compliance with applicable standards, company policies, and newly issued memoranda.'
+  ];
+
   // ---- Findings: dynamic numbered list (add/remove rows), matching the
-  // numbered "Branch Evaluation, Concerns, and Findings" list in the .docx.
+  // numbered "Branch Evaluation/Concerns" list in the .docx.
   function renderDraftFindings_(items){
     const list = (items && items.length) ? items : [''];
     const el = document.getElementById('draftFindingsList');
@@ -4502,9 +4511,11 @@
     const preparedBy = document.getElementById('draftPreparedBy').value.trim();
 
     const listHtml = items => '<ol>' + items.map(t => `<li>${escapeHtml(t)}</li>`).join('') + '</ol>';
-    const findingsHtml = findings.length
-      ? listHtml(findings)
-      : '<div class="dp-empty">No findings entered yet.</div>';
+    // If the auditor hasn't typed any custom findings, fall back to the
+    // standard boilerplate evaluation text (matches DEFAULT_FINDINGS in
+    // Code.gs) instead of an empty placeholder, so Preview always shows
+    // exactly what the downloaded .docx will contain.
+    const findingsHtml = listHtml(findings.length ? findings : DEFAULT_FINDINGS_);
 
     document.getElementById('draftPreviewDoc').innerHTML =
       `<div class="dp-meta">` +
@@ -4513,7 +4524,7 @@
       `</div>` +
       `<h3>Branch</h3>${listHtml(branchItems)}` +
       `<h3>Field</h3>${listHtml(fieldItems)}` +
-      `<h3>Branch Evaluation, Concerns, and Findings</h3>${findingsHtml}` +
+      `<h3>Branch Evaluation/Concerns</h3>${findingsHtml}` +
       `<div class="dp-signoff">` +
         `<div><div class="dp-sign-label">Prepared by:</div>${escapeHtml(preparedBy) || '<span class="dp-empty">(not set)</span>'}</div>` +
         `<div><div class="dp-sign-label">Received by:</div>&nbsp;</div>` +
@@ -4545,7 +4556,10 @@
     const dateDisplay = date ? new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase() : '';
     const branchItems = draftEditableListValues_('draftChecklistBranch');
     const fieldItems = draftEditableListValues_('draftChecklistField');
-    const findings = draftFindingsValues_().filter(f => f.trim());
+    // Send the standard boilerplate when nothing custom was typed, so the
+    // downloaded .docx always matches what Preview just showed.
+    const typedFindings = draftFindingsValues_().filter(f => f.trim());
+    const findings = typedFindings.length ? typedFindings : DEFAULT_FINDINGS_;
     const preparedBy = document.getElementById('draftPreparedBy').value.trim();
 
     const btn = evt && evt.target;
