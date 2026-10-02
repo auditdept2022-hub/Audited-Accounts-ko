@@ -1877,9 +1877,9 @@
         <span class="share-ic" style="background:#7360F2;">V</span>
         <span class="share-txt"><b>Viber</b><small>Needs the Viber app installed</small></span>
       </button>
-      <button class="share-opt" onclick="shareDraftVia_('telegram')">
-        <span class="share-ic" style="background:#2AABEE;">T</span>
-        <span class="share-txt"><b>Telegram</b><small>Opens Telegram with the report text</small></span>
+      <button class="share-opt" onclick="shareDraftVia_('messenger')">
+        <span class="share-ic" style="background:#0084FF;">M</span>
+        <span class="share-txt"><b>Messenger</b><small>Copies the report, then opens Messenger — paste it in the chat</small></span>
       </button>
       <button class="share-opt" onclick="shareDraftVia_('email')">
         <span class="share-ic" style="background:#EA4335;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg></span>
@@ -4781,9 +4781,26 @@
       closeDraftShare_();
       return;
     }
+    if(platform === 'messenger'){
+      // Messenger has no "share this text" link for websites, so copy the
+      // report first, then open Messenger so it can be pasted into any chat.
+      try{
+        await navigator.clipboard.writeText(text);
+      }catch(e){
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        try{ document.execCommand('copy'); }catch(e2){}
+        ta.remove();
+      }
+      toast('Report copied — paste it in your Messenger chat');
+      closeDraftShare_();
+      if(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) window.location.href = 'fb-messenger://';
+      else window.open('https://www.messenger.com/', '_blank', 'noopener');
+      return;
+    }
     const enc = encodeURIComponent;
     if(platform === 'whatsapp') window.open('https://wa.me/?text=' + enc(text), '_blank', 'noopener');
-    else if(platform === 'telegram') window.open('https://t.me/share/url?url=%20&text=' + enc(text), '_blank', 'noopener');
     else if(platform === 'viber') window.location.href = 'viber://forward?text=' + enc(text);
     else if(platform === 'email') window.location.href = 'mailto:?subject=' + enc(subject) + '&body=' + enc(text);
     closeDraftShare_();
