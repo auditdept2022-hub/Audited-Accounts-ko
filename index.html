@@ -1859,19 +1859,27 @@
     <div class="modal-head">
       <div>
         <h2>Share draft report</h2>
-        <div class="meta">Share the .docx through your device's share menu</div>
+        <div class="meta">Send a link to the .docx — anyone with the link can open it</div>
       </div>
       <button class="modal-close" onclick="closeDraftShare_()"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
-      <button class="share-opt share-main" id="shareFileBtn" onclick="shareDraftFile_()" disabled>
-        <span class="share-ic" style="background:#3457E0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg></span>
-        <span class="share-txt"><b>Share</b><small id="shareFileHint">Preparing the .docx…</small></span>
+      <div class="share-note" id="shareLinkHint" style="margin-bottom:12px;">Preparing the share link…</div>
+      <button class="share-opt" id="shareMsgrBtn" onclick="shareDraftMessenger_()" disabled>
+        <span class="share-ic" style="background:#0084FF;">M</span>
+        <span class="share-txt"><b>Share via Messenger</b><small>Opens Messenger with the report link ready to send</small></span>
       </button>
+      <button class="share-opt" id="shareMailBtn" onclick="shareDraftEmail_()" disabled>
+        <span class="share-ic" style="background:#EA4335;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg></span>
+        <span class="share-txt"><b>Share via Email</b><small>Opens your email app with the report link in the message</small></span>
+      </button>
+      <button class="share-opt" id="shareCopyBtn" onclick="shareDraftCopyLink_()" disabled>
+        <span class="share-ic" style="background:#3457E0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></span>
+        <span class="share-txt"><b>Copy link</b><small>Paste it into any app</small></span>
+      </button>
+      <div class="share-note">The report is saved to Google Drive. Anyone who has the link can open and download it.</div>
 
-      <div class="share-note">Opens your phone's own share menu with the .docx already attached — you choose the app and the person there.</div>
-
-      <div class="share-group-label">Can't share from this device?</div>
+      <div class="share-group-label">Or save the file</div>
       <button class="share-opt" onclick="shareDraftDownload_()">
         <span class="share-ic" style="background:#16245C;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg></span>
         <span class="share-txt"><b>Download .docx</b><small>Save the file, then attach it in any app</small></span>
@@ -4646,9 +4654,8 @@
   }
 
   // ---- Share draft report -----------------------------------------------
-  // "Share document" hands the real .docx to the device's native share sheet
-  // (Web Share API); the person picks Messenger / WhatsApp / Viber / Gmail…
-  // there, then the chat or recipient.
+  // Share = save the .docx to Google Drive ("anyone with the link"), then
+  // open Messenger / the email app with that link ready to send.
   // The .docx is generated in the background as soon as the share sheet
   // opens, so tapping "Share file" can call navigator.share immediately
   // (browsers only allow it right after a tap, not after a long wait).
@@ -4669,15 +4676,16 @@
     };
   }
 
-  function setShareFileState_(state, msg){
-    const btn = document.getElementById('shareFileBtn');
-    const hint = document.getElementById('shareFileHint');
-    if(!btn || !hint) return;
-    btn.disabled = (state !== 'ready');
-    if(state === 'preparing') hint.textContent = 'Preparing the .docx…';
-    else if(state === 'ready') hint.textContent = 'Ready — tap to open the share menu';
-    else if(state === 'unsupported') hint.textContent = 'This browser can\'t send files to other apps — use Download below';
-    else hint.textContent = 'Could not prepare the file: ' + (msg || 'unknown error');
+  function setShareLinkState_(state, msg){
+    const hint = document.getElementById('shareLinkHint');
+    ['shareMsgrBtn','shareMailBtn','shareCopyBtn'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.disabled = (state !== 'ready');
+    });
+    if(!hint) return;
+    if(state === 'preparing') hint.textContent = 'Preparing the share link…';
+    else if(state === 'ready') hint.textContent = 'Ready — choose how to send it.';
+    else hint.textContent = 'Could not prepare the link: ' + (msg || 'unknown error');
   }
 
   function prepareDraftShareFile_(){
@@ -4699,42 +4707,111 @@
     return entry.promise;
   }
 
+  function fileToBase64_(file){
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(',')[1] || '');
+      r.onerror = () => reject(new Error('Could not read the file'));
+      r.readAsDataURL(file);
+    });
+  }
+
+  // Saves the generated .docx to Google Drive (Code.gs: saveDraftReportToDrive,
+  // shared as "anyone with the link") and returns the link. Prepared as soon
+  // as the share sheet opens so the Messenger / Email buttons can open their
+  // app instantly on tap (browsers block app-opening after a slow wait).
+  let draftLinkCache_ = null; // { key, promise, url }
+
+  function prepareDraftShareLink_(){
+    const key = JSON.stringify(collectDraftReportData_());
+    if(draftLinkCache_ && draftLinkCache_.key === key) return draftLinkCache_.promise;
+    const entry = { key: key, url: null, promise: null };
+    entry.promise = (async () => {
+      const file = await prepareDraftShareFile_();
+      const base64 = await fileToBase64_(file);
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'saveDraftReportToDrive', base64: base64, filename: file.name })
+      });
+      const data = await parseJsonResponse_(res);
+      if(data.error) throw new Error(data.error);
+      if(!data.url) throw new Error('The backend did not return a link — is saveDraftReportToDrive added to Code.gs and redeployed?');
+      entry.url = data.url;
+      return data.url;
+    })();
+    draftLinkCache_ = entry;
+    entry.promise.catch(() => { if(draftLinkCache_ === entry) draftLinkCache_ = null; });
+    return entry.promise;
+  }
+
   function openDraftShare_(){
-    // If the .docx for the current form data is already prepared, skip the
-    // sheet and open the native share menu straight away (still inside the
-    // tap, which is what browsers require).
-    if(navigator.share && navigator.canShare){
-      const c = draftShareCache_;
-      if(c && c.file && c.key === JSON.stringify(collectDraftReportData_())){
-        let ok = false;
-        try{ ok = navigator.canShare({ files: [c.file] }); }catch(e){ ok = false; }
-        if(ok){ shareDraftFile_(); return; }
-      }
-    }
     document.getElementById('draftShareOverlay').style.display = 'flex';
-    if(!(navigator.share && navigator.canShare)){ setShareFileState_('unsupported'); return; }
-    setShareFileState_('preparing');
-    prepareDraftShareFile_().then(file => {
-      let ok = false;
-      try{ ok = navigator.canShare({ files: [file] }); }catch(e){ ok = false; }
-      setShareFileState_(ok ? 'ready' : 'unsupported');
-    }).catch(err => setShareFileState_('error', err && err.message));
+    setShareLinkState_('preparing');
+    prepareDraftShareLink_()
+      .then(() => setShareLinkState_('ready'))
+      .catch(err => setShareLinkState_('error', err && err.message));
   }
 
   function closeDraftShare_(){
     document.getElementById('draftShareOverlay').style.display = 'none';
   }
 
-  async function shareDraftFile_(){
-    const entry = draftShareCache_;
-    if(!entry || !entry.file) return;
-    try{
-      await navigator.share({ files: [entry.file], title: entry.file.name });
-      closeDraftShare_();
-    }catch(err){
-      if(err && err.name === 'AbortError') return; // user closed the share sheet
-      toast('Could not share: ' + (err && err.message ? err.message : 'unknown error'));
+  function draftShareUrl_(){
+    const c = draftLinkCache_;
+    return (c && c.url) ? c.url : null;
+  }
+
+  function draftShareSubject_(){
+    const branch = (document.getElementById('draftBranch').value || '').trim();
+    return 'Draft Report' + (branch ? ' — ' + branch : '');
+  }
+
+  function shareDraftMessenger_(){
+    const url = draftShareUrl_();
+    if(!url) return;
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if(isMobile){
+      // Opens the Messenger app with the link ready to send; the person
+      // picks the chat there.
+      window.location.href = 'fb-messenger://share/?link=' + encodeURIComponent(url);
+      toast('Opening Messenger… if it does not open, use Copy link.');
+    } else {
+      copyTextToClipboard_(url).then(() => toast('Link copied — paste it in Messenger.'));
+      window.open('https://www.messenger.com/', '_blank', 'noopener');
     }
+  }
+
+  function shareDraftEmail_(){
+    const url = draftShareUrl_();
+    if(!url) return;
+    const body = 'Hello,\n\nPlease find the draft report here:\n' + url + '\n\nThank you.';
+    window.location.href = 'mailto:?subject=' + encodeURIComponent(draftShareSubject_()) + '&body=' + encodeURIComponent(body);
+  }
+
+  function shareDraftCopyLink_(){
+    const url = draftShareUrl_();
+    if(!url) return;
+    copyTextToClipboard_(url).then(ok => toast(ok ? 'Link copied.' : 'Could not copy — long-press to copy: ' + url));
+  }
+
+  async function copyTextToClipboard_(text){
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    }catch(e){ /* fall through to the legacy path */ }
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    }catch(e){ return false; }
   }
 
   function shareDraftDownload_(){
