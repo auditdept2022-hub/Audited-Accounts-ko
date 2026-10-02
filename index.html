@@ -922,6 +922,19 @@
   .draft-findings-remove{background:none;border:none;color:var(--muted-2);cursor:pointer;font-size:16px;line-height:1;padding:4px;flex-shrink:0;border-radius:6px;margin-top:5px;}
   .draft-findings-remove:hover{background:var(--del-soft);color:var(--del);}
   .draft-findings-add{margin-top:8px;}
+  /* ---- Share draft report sheet ---- */
+  .modal.share-modal{max-width:440px;}
+  .share-group-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin:16px 0 8px;}
+  .share-group-label:first-child{margin-top:0;}
+  .share-opt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;margin-bottom:8px;background:#fff;border:1px solid var(--line);border-radius:12px;cursor:pointer;font-family:inherit;touch-action:manipulation;}
+  .share-opt:hover:not(:disabled){background:#F8F9FD;border-color:var(--accent);}
+  .share-opt:disabled{opacity:.55;cursor:not-allowed;}
+  .share-ic{width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;flex-shrink:0;}
+  .share-ic svg{width:18px;height:18px;}
+  .share-txt{display:flex;flex-direction:column;gap:1px;min-width:0;}
+  .share-txt b{font-size:14px;color:var(--text);font-weight:600;}
+  .share-txt small{font-size:12px;color:var(--muted);}
+
 
   /* ---- Preview: renders like a plain printed page (no boxes/inputs),
      with the same header/footer letterhead as the .docx, so it reads the
@@ -1791,6 +1804,7 @@
       <div class="left">
         <button class="btn" onclick="previewDraftReport_()">Preview</button>
         <button class="btn" onclick="downloadDraftReportDocx_(event)">Download .docx</button>
+        <button class="btn" onclick="openDraftShare_()"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg> Share</button>
       </div>
       <div class="right">
         <button class="btn" onclick="closeDraftReport_()">Close</button>
@@ -1822,10 +1836,59 @@
     <div class="modal-foot">
       <div class="left">
         <button class="btn" onclick="downloadDraftReportDocx_(event)">Download .docx</button>
+        <button class="btn" onclick="openDraftShare_()"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg> Share</button>
       </div>
       <div class="right">
         <button class="btn" onclick="closeDraftPreview_()">Close</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Share draft report — pick where to send it. The .docx file itself can
+     only be attached through the device's native share sheet (browser
+     limitation); the app-specific options below send the report as text. -->
+<div class="overlay" id="draftShareOverlay" onclick="if(event.target===this) closeDraftShare_()">
+  <div class="modal share-modal">
+    <div class="modal-head">
+      <div>
+        <h2>Share draft report</h2>
+        <div class="meta">Choose where to send it</div>
+      </div>
+      <button class="modal-close" onclick="closeDraftShare_()"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="share-group-label">Send the .docx file</div>
+      <button class="share-opt" id="shareFileBtn" onclick="shareDraftFile_()" disabled>
+        <span class="share-ic" style="background:#3457E0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg></span>
+        <span class="share-txt"><b>Share file to an app…</b><small id="shareFileHint">Preparing the .docx…</small></span>
+      </button>
+      <button class="share-opt" onclick="shareDraftDownload_()">
+        <span class="share-ic" style="background:#16245C;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg></span>
+        <span class="share-txt"><b>Download .docx</b><small>Save the file, then attach it anywhere</small></span>
+      </button>
+
+      <div class="share-group-label">Send as text message</div>
+      <button class="share-opt" onclick="shareDraftVia_('whatsapp')">
+        <span class="share-ic" style="background:#25D366;">W</span>
+        <span class="share-txt"><b>WhatsApp</b><small>Opens WhatsApp with the report text</small></span>
+      </button>
+      <button class="share-opt" onclick="shareDraftVia_('viber')">
+        <span class="share-ic" style="background:#7360F2;">V</span>
+        <span class="share-txt"><b>Viber</b><small>Needs the Viber app installed</small></span>
+      </button>
+      <button class="share-opt" onclick="shareDraftVia_('telegram')">
+        <span class="share-ic" style="background:#2AABEE;">T</span>
+        <span class="share-txt"><b>Telegram</b><small>Opens Telegram with the report text</small></span>
+      </button>
+      <button class="share-opt" onclick="shareDraftVia_('email')">
+        <span class="share-ic" style="background:#EA4335;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg></span>
+        <span class="share-txt"><b>Email</b><small>Opens your email app with the report text</small></span>
+      </button>
+      <button class="share-opt" onclick="shareDraftVia_('copy')">
+        <span class="share-ic" style="background:#6B7499;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></span>
+        <span class="share-txt"><b>Copy text</b><small>Paste it into any app</small></span>
+      </button>
     </div>
   </div>
 </div>
@@ -4437,7 +4500,7 @@
     const values = draftFindingsValues_();
     values.push('');
     renderDraftFindings_(values);
-    const inputs = document.querySelectorAll('#draftFindingsList input[data-findings-input]');
+    const inputs = document.querySelectorAll('#draftFindingsList textarea[data-findings-input]');
     if(inputs.length) inputs[inputs.length - 1].focus();
   }
 
@@ -4593,6 +4656,137 @@
     }finally{
       if(btn){ btn.disabled = false; btn.textContent = originalLabel || 'Download .docx'; }
     }
+  }
+
+  // ---- Share draft report -----------------------------------------------
+  // "Share file" uses the device's native share sheet (Web Share API) so the
+  // real .docx is attached; browsers can't attach files through app links
+  // (wa.me, mailto:, ...), so those options send the report as plain text.
+  // The .docx is generated in the background as soon as the share sheet
+  // opens, so tapping "Share file" can call navigator.share immediately
+  // (browsers only allow it right after a tap, not after a long wait).
+  const DOCX_MIME_ = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  let draftShareCache_ = null; // { key, promise, file }
+
+  function collectDraftReportData_(){
+    const date = document.getElementById('draftDate').value;
+    const dateDisplay = date ? new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase() : '';
+    const typedFindings = draftFindingsValues_().filter(f => f.trim());
+    return {
+      branch: document.getElementById('draftBranch').value.trim(),
+      dateDisplay: dateDisplay,
+      branchItems: draftEditableListValues_('draftChecklistBranch'),
+      fieldItems: draftEditableListValues_('draftChecklistField'),
+      findings: typedFindings.length ? typedFindings : DEFAULT_FINDINGS_,
+      preparedBy: document.getElementById('draftPreparedBy').value.trim()
+    };
+  }
+
+  function draftReportAsText_(d){
+    const numbered = items => items.filter(t => t.trim()).map((t, i) => (i + 1) + '. ' + t.trim()).join('\n');
+    return [
+      'BRANCH: ' + d.branch,
+      'DATE: ' + d.dateDisplay,
+      '',
+      'Branch',
+      numbered(d.branchItems),
+      '',
+      'Field',
+      numbered(d.fieldItems),
+      '',
+      'Branch Evaluation/Concerns',
+      numbered(d.findings),
+      '',
+      'Prepared by: ' + d.preparedBy
+    ].join('\n');
+  }
+
+  function setShareFileState_(state, msg){
+    const btn = document.getElementById('shareFileBtn');
+    const hint = document.getElementById('shareFileHint');
+    if(!btn || !hint) return;
+    btn.disabled = (state !== 'ready');
+    if(state === 'preparing') hint.textContent = 'Preparing the .docx…';
+    else if(state === 'ready') hint.textContent = 'Pick WhatsApp, Messenger, Viber, Gmail, Drive… with the file attached';
+    else if(state === 'unsupported') hint.textContent = 'Not supported by this browser — use Download or the text options';
+    else hint.textContent = 'Could not prepare the file: ' + (msg || 'unknown error');
+  }
+
+  function prepareDraftShareFile_(){
+    const d = collectDraftReportData_();
+    const key = JSON.stringify(d);
+    if(draftShareCache_ && draftShareCache_.key === key) return draftShareCache_.promise;
+    const entry = { key: key, file: null, promise: null };
+    entry.promise = (async () => {
+      const data = await generateDraftReportDocxRemote_(d);
+      if(data.error) throw new Error(data.error);
+      const bin = atob(data.base64);
+      const bytes = new Uint8Array(bin.length);
+      for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      entry.file = new File([bytes], data.filename || 'DRAFT_REPORT.docx', { type: DOCX_MIME_ });
+      return entry.file;
+    })();
+    draftShareCache_ = entry;
+    entry.promise.catch(() => { if(draftShareCache_ === entry) draftShareCache_ = null; });
+    return entry.promise;
+  }
+
+  function openDraftShare_(){
+    document.getElementById('draftShareOverlay').style.display = 'flex';
+    if(!(navigator.share && navigator.canShare)){ setShareFileState_('unsupported'); return; }
+    setShareFileState_('preparing');
+    prepareDraftShareFile_().then(file => {
+      let ok = false;
+      try{ ok = navigator.canShare({ files: [file] }); }catch(e){ ok = false; }
+      setShareFileState_(ok ? 'ready' : 'unsupported');
+    }).catch(err => setShareFileState_('error', err && err.message));
+  }
+
+  function closeDraftShare_(){
+    document.getElementById('draftShareOverlay').style.display = 'none';
+  }
+
+  async function shareDraftFile_(){
+    const entry = draftShareCache_;
+    if(!entry || !entry.file) return;
+    try{
+      await navigator.share({ files: [entry.file], title: entry.file.name });
+      closeDraftShare_();
+    }catch(err){
+      if(err && err.name === 'AbortError') return; // user closed the share sheet
+      toast('Could not share: ' + (err && err.message ? err.message : 'unknown error'));
+    }
+  }
+
+  function shareDraftDownload_(){
+    closeDraftShare_();
+    downloadDraftReportDocx_();
+  }
+
+  async function shareDraftVia_(platform){
+    const d = collectDraftReportData_();
+    const text = draftReportAsText_(d);
+    const subject = 'Draft Report - ' + d.branch + ' - ' + d.dateDisplay;
+    if(platform === 'copy'){
+      try{
+        await navigator.clipboard.writeText(text);
+      }catch(e){
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        try{ document.execCommand('copy'); }catch(e2){}
+        ta.remove();
+      }
+      toast('Report text copied');
+      closeDraftShare_();
+      return;
+    }
+    const enc = encodeURIComponent;
+    if(platform === 'whatsapp') window.open('https://wa.me/?text=' + enc(text), '_blank', 'noopener');
+    else if(platform === 'telegram') window.open('https://t.me/share/url?url=%20&text=' + enc(text), '_blank', 'noopener');
+    else if(platform === 'viber') window.location.href = 'viber://forward?text=' + enc(text);
+    else if(platform === 'email') window.location.href = 'mailto:?subject=' + enc(subject) + '&body=' + enc(text);
+    closeDraftShare_();
   }
 
   function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
