@@ -1859,25 +1859,17 @@
     <div class="modal-head">
       <div>
         <h2>Share draft report</h2>
-        <div class="meta">Send the .docx document to another app</div>
+        <div class="meta">Share the .docx through your device's share menu</div>
       </div>
       <button class="modal-close" onclick="closeDraftShare_()"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
       <button class="share-opt share-main" id="shareFileBtn" onclick="shareDraftFile_()" disabled>
         <span class="share-ic" style="background:#3457E0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg></span>
-        <span class="share-txt"><b>Share document…</b><small id="shareFileHint">Preparing the .docx…</small></span>
+        <span class="share-txt"><b>Share</b><small id="shareFileHint">Preparing the .docx…</small></span>
       </button>
 
-      <div class="share-group-label">Pick your app on the next screen</div>
-      <div class="share-apps">
-        <span class="share-app"><span class="share-ic" style="background:#0084FF;">M</span>Messenger</span>
-        <span class="share-app"><span class="share-ic" style="background:#25D366;">W</span>WhatsApp</span>
-        <span class="share-app"><span class="share-ic" style="background:#7360F2;">V</span>Viber</span>
-        <span class="share-app"><span class="share-ic" style="background:#EA4335;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg></span>Gmail</span>
-        <span class="share-app"><span class="share-ic" style="background:#16245C;">...</span>Others</span>
-      </div>
-      <div class="share-note">The document is attached automatically. After you choose the app, pick the person or chat to send it to.</div>
+      <div class="share-note">Opens your phone's own share menu with the .docx already attached — you choose the app and the person there.</div>
 
       <div class="share-group-label">Can't share from this device?</div>
       <button class="share-opt" onclick="shareDraftDownload_()">
@@ -4683,7 +4675,7 @@
     if(!btn || !hint) return;
     btn.disabled = (state !== 'ready');
     if(state === 'preparing') hint.textContent = 'Preparing the .docx…';
-    else if(state === 'ready') hint.textContent = 'Ready — tap to choose an app and send the .docx';
+    else if(state === 'ready') hint.textContent = 'Ready — tap to open the share menu';
     else if(state === 'unsupported') hint.textContent = 'This browser can\'t send files to other apps — use Download below';
     else hint.textContent = 'Could not prepare the file: ' + (msg || 'unknown error');
   }
@@ -4708,6 +4700,17 @@
   }
 
   function openDraftShare_(){
+    // If the .docx for the current form data is already prepared, skip the
+    // sheet and open the native share menu straight away (still inside the
+    // tap, which is what browsers require).
+    if(navigator.share && navigator.canShare){
+      const c = draftShareCache_;
+      if(c && c.file && c.key === JSON.stringify(collectDraftReportData_())){
+        let ok = false;
+        try{ ok = navigator.canShare({ files: [c.file] }); }catch(e){ ok = false; }
+        if(ok){ shareDraftFile_(); return; }
+      }
+    }
     document.getElementById('draftShareOverlay').style.display = 'flex';
     if(!(navigator.share && navigator.canShare)){ setShareFileState_('unsupported'); return; }
     setShareFileState_('preparing');
