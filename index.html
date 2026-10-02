@@ -1864,6 +1864,11 @@
       <button class="modal-close" onclick="closeDraftShare_()"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
+      <button class="share-opt share-main" id="shareFileBtn" onclick="shareDraftFile_()" disabled>
+        <span class="share-ic" style="background:#2B579A;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/></svg></span>
+        <span class="share-txt"><b>Share the Word file (.docx)</b><small id="shareFileHint">Preparing the document…</small></span>
+      </button>
+      <div class="share-group-label">Or send a link instead</div>
       <div class="share-note" id="shareLinkHint" style="margin-bottom:12px;">Preparing the share link…</div>
       <button class="share-opt" id="shareMsgrBtn" onclick="shareDraftMessenger_()" disabled>
         <span class="share-ic" style="background:#0084FF;">M</span>
@@ -4744,8 +4749,58 @@
     return entry.promise;
   }
 
+  function setShareFileState_(state, msg){
+    const btn = document.getElementById('shareFileBtn');
+    const hint = document.getElementById('shareFileHint');
+    if(btn) btn.disabled = (state !== 'ready');
+    if(!hint) return;
+    if(state === 'preparing') hint.textContent = 'Preparing the document…';
+    else if(state === 'ready') hint.textContent = 'Ready — tap to share the .docx itself';
+    else hint.textContent = 'Could not prepare the document: ' + (msg || 'unknown error');
+  }
+
+  // Shares the actual .docx through the phone's own share menu (only the
+  // file, no link). If this browser / app refuses ("Permission denied"),
+  // the file is saved to the device instead so it can be attached by hand.
+  async function shareDraftFile_(){
+    let file;
+    try{ file = await prepareDraftShareFile_(); }
+    catch(err){ toast('Could not prepare the document: ' + (err && err.message ? err.message : 'unknown error')); return; }
+
+    let canShareFile = false;
+    try{ canShareFile = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })); }catch(e){ canShareFile = false; }
+    if(!canShareFile){
+      saveDraftFileLocally_(file);
+      toast('This browser cannot share files directly, so the .docx was saved. Open it from Downloads and share it from there.');
+      return;
+    }
+    try{
+      await navigator.share({ files: [file] });
+      closeDraftShare_();
+    }catch(err){
+      if(err && err.name === 'AbortError') return; // closed the share menu
+      saveDraftFileLocally_(file);
+      toast('Sharing is blocked here, so the .docx was saved instead. Open it from Downloads and share it from there.');
+    }
+  }
+
+  function saveDraftFileLocally_(file){
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name || 'DRAFT_REPORT.docx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
   function openDraftShare_(){
     document.getElementById('draftShareOverlay').style.display = 'flex';
+    setShareFileState_('preparing');
+    prepareDraftShareFile_()
+      .then(() => setShareFileState_('ready'))
+      .catch(err => setShareFileState_('error', err && err.message));
     setShareLinkState_('preparing');
     prepareDraftShareLink_()
       .then(() => setShareLinkState_('ready'))
