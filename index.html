@@ -2020,7 +2020,7 @@
   // and saved but not re-deployed via Deploy > Manage deployments >
   // pencil icon > New version — this shows a small warning banner
   // instead of silently running the dashboard against old backend code.
-  const APP_VERSION = '2026-09-22.2';
+  const APP_VERSION = '2026-10-14.1';
   let versionBannerShown_ = false;
   function checkVersionSync_(backendVersion){
     if(!backendVersion || backendVersion === APP_VERSION || versionBannerShown_) return;
@@ -5898,7 +5898,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       c.row, c.customer, c.model, c.engineNo, c.siDate, c.dueDay, c.terms,
       c.ma, c.dateOfLastPayment, c.outstandingBalance, c.remainingBalance,
       c.unitAccountStatus, c.unitStatus, c.paymentMode, c.dateOfAudit,
-      c.remarks, c.oldRemarks, c.marker
+      c.remarks, c.oldRemarks, c.marker, c.hidden
     ]));
   }
 
@@ -6511,6 +6511,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
         saveLocalCache_(customers);
         render();
       }
+      migrateLocalHidden_();
       document.getElementById('connStatus').textContent = 'synced ' + new Date().toLocaleTimeString();
       updateSyncUI();
     }catch(err){
@@ -7794,40 +7795,61 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   // Print output in one place — Print already reuses that same function,
   // so nothing extra was needed there.
   //
-  // Local-only (localStorage), keyed per API_URL + branch like the other
-  // per-branch UI state above, and lazily (re)loaded on first use each
-  // time that key changes — so switching branches never mixes one
-  // branch's hidden set into another's, without needing to hook every
-  // place currentSheet gets reassigned.
-  let hiddenRows_ = new Set();
-  let hiddenRowsKey_ = null;
-  function hiddenKey_(){ return 'aa_hidden_v1:' + API_URL + ':' + currentSheet; }
-  function ensureHiddenLoaded_(){
-    const k = hiddenKey_();
-    if(hiddenRowsKey_ === k) return;
-    hiddenRowsKey_ = k;
+  // Stored in the sheet (a "Hidden" column, 'Y' = hidden) so every device
+  // and user sees the same hidden list. It is saved like any other field
+  // edit (same outbox / offline / retry path as the color marker), and the
+  // flag lives inside the customer's own row, so deleting or inserting rows
+  // in the sheet can never make the wrong customer hidden.
+  function isHidden_(row){
+    const c = customers.find(x => x.row === row);
+    return !!(c && c.hidden === 'Y');
+  }
+  async function setHidden_(row, hide, silent){
+    const c = customers.find(x => x.row === row);
+    if(!c) return;
+    const prev = c.hidden === 'Y' ? 'Y' : '';
+    const next = hide ? 'Y' : '';
+    if(prev === next) return;
+    const item = {
+      id: genId_(),
+      kind: 'update',
+      row: row,
+      fields: { hidden: next },
+      remark: null,
+      auditor: null,
+      status: 'pending',
+      snapshot: { hidden: prev }
+    };
     try{
-      const raw = localStorage.getItem(k);
-      hiddenRows_ = new Set(raw ? JSON.parse(raw) : []);
-    }catch(e){ hiddenRows_ = new Set(); }
+      const result = await queueOrSend_(item);
+      if(silent) return;
+      if(result && result.queued) toast((hide ? 'Hidden' : 'Restored') + ' — will sync to the sheet once you\'re back online.');
+      else toast(hide ? 'Customer hidden. Restore it anytime from the hidden-customers view.' : 'Customer restored.');
+    }catch(err){
+      toast('Could not save: ' + err.message);
+    }
   }
-  function saveHidden_(){
-    try{ localStorage.setItem(hiddenKey_(), JSON.stringify(Array.from(hiddenRows_))); }catch(e){ /* best-effort */ }
-  }
-  function isHidden_(row){ ensureHiddenLoaded_(); return hiddenRows_.has(row); }
-  function hideCustomer_(row){
-    ensureHiddenLoaded_();
-    hiddenRows_.add(row);
-    saveHidden_();
-    render();
-    toast('Customer hidden. Restore it anytime from the hidden-customers view.');
-  }
-  function unhideCustomer_(row){
-    ensureHiddenLoaded_();
-    hiddenRows_.delete(row);
-    saveHidden_();
-    render();
-    toast('Customer restored.');
+  function hideCustomer_(row){ return setHidden_(row, true); }
+  function unhideCustomer_(row){ return setHidden_(row, false); }
+
+  // One-time move of the OLD per-device hidden list (this browser only)
+  // into the sheet. Runs after each successful load; does nothing once the
+  // old key is gone.
+  function migrateLocalHidden_(){
+    if(!currentSheet) return;
+    const k = 'aa_hidden_v1:' + API_URL + ':' + currentSheet;
+    let raw = null;
+    try{ raw = localStorage.getItem(k); }catch(e){ return; }
+    if(!raw) return;
+    let rows = [];
+    try{ rows = JSON.parse(raw) || []; }catch(e){ rows = []; }
+    try{ localStorage.removeItem(k); }catch(e){}
+    let moved = 0;
+    rows.forEach(r => {
+      const c = customers.find(x => x.row === r);
+      if(c && c.hidden !== 'Y'){ setHidden_(r, true, true); moved++; }
+    });
+    if(moved) toast(moved + ' hidden customer' + (moved === 1 ? '' : 's') + ' moved to the sheet — now shared on every device.');
   }
 
   // ---- Customer card context menu (long-press / right-click) --------
