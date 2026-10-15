@@ -1460,6 +1460,11 @@
     .modal-close{min-width:36px;min-height:36px;}
     .draft-report-btn{min-width:36px;min-height:36px;}
   }
+
+  /* Keyboard focus: a clear ring on anything you can Tab to */
+  :where(button, [role="button"], a[href], summary, .rec, .notif-item, .preview-row, .p-name-wrap, .retry-link, .tag-pending.err):focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .fc-select-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .rec:focus-visible{outline-offset:-2px;}
 </style>
 </head>
 <body>
@@ -2020,7 +2025,7 @@
   // and saved but not re-deployed via Deploy > Manage deployments >
   // pencil icon > New version — this shows a small warning banner
   // instead of silently running the dashboard against old backend code.
-  const APP_VERSION = '2026-10-14.1';
+  const APP_VERSION = '2026-10-15.1';
   let versionBannerShown_ = false;
   function checkVersionSync_(backendVersion){
     if(!backendVersion || backendVersion === APP_VERSION || versionBannerShown_) return;
@@ -2730,7 +2735,8 @@
     }
 
     try{
-      await sendOne_(item);
+      const sent = await sendOne_(item);
+      warnSkipped_(sent);
       if(inputEl) inputEl.classList.remove('qi-unsynced');
     }catch(err){
       if(isConnectionError_(err)){
@@ -4060,6 +4066,8 @@
     const chunks = chunkByEncodedSize_(items, toBatchItem, MAX_CHUNK_ENCODED_CHARS);
     let succeeded = 0, failed = 0, done = doneSoFar;
     const failedNames = [];
+    const skippedCols = [];
+    function collectSkipped_(d){ (d && d.skipped || []).forEach(h => { if(skippedCols.indexOf(h) === -1) skippedCols.push(h); }); }
 
     function reportProgress(){
       document.getElementById('importStatus').textContent = `Importing ${done} / ${overallTotal}…`;
@@ -4071,6 +4079,7 @@
           const res = await apiCall(singleAction, toSinglePayload(item));
           const data = await parseJsonResponse_(res);
           if(data.error || !data.ok) throw new Error(data.error || 'unexpected response');
+          collectSkipped_(data);
           succeeded++;
         }catch(err){
           failed++;
@@ -4102,6 +4111,7 @@
         succeeded += chunk.length - chunkFailed;
         failed += chunkFailed;
         if(data.failedNames && data.failedNames.length) failedNames.push(...data.failedNames);
+        collectSkipped_(data);
         done += chunk.length;
         reportProgress();
       }catch(err){
@@ -4119,6 +4129,7 @@
     const workerCount = Math.min(CONCURRENCY, chunks.length);
     await Promise.all(Array.from({ length: workerCount }, worker));
 
+    warnSkipped_({ skipped: skippedCols });
     return { succeeded, failed, done, failedNames };
   }
 
@@ -4131,11 +4142,37 @@
     e.target.value = ''; // allow re-importing the same file(s) later
   });
 
-  function toast(msg){
+  function toast(msg, ms){
     const t = document.getElementById('toast');
     t.textContent = msg;
     t.classList.add('show');
-    setTimeout(()=>t.classList.remove('show'), 2600);
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=>t.classList.remove('show'), ms || 2600);
+  }
+
+  // ---- "Not saved" warning ----------------------------------------------
+  // The backend (Code.gs) now lists, in `skipped`, any column titles it could
+  // not find in the branch sheet. Those values were NOT written to the sheet
+  // even though the save itself worked, so say so instead of staying silent.
+  // The same warning for the same column is shown at most once per 30 s so a
+  // burst of edits or a big import doesn't spam you.
+  const skippedWarnedAt_ = {};
+  function warnSkipped_(data){
+    const list = data && data.skipped;
+    if(!list || !list.length) return;
+    const sheet = currentSheet || 'this branch';
+    const fresh = list.filter(h => {
+      const k = sheet + '|' + h;
+      if(Date.now() - (skippedWarnedAt_[k] || 0) < 30000) return false;
+      skippedWarnedAt_[k] = Date.now();
+      return true;
+    });
+    if(!fresh.length) return;
+    const cols = fresh.map(h => '\u201C' + h + '\u201D').join(', ');
+    const msg = 'Not saved to the sheet: ' + (fresh.length === 1 ? 'column ' : 'columns ') + cols +
+      ' not found in \u201C' + sheet + '\u201D. Check the titles in row 1 of that sheet.';
+    toast(msg, 8000);
+    addNotification_(msg, true);
   }
 
   async function connect(){
@@ -5956,6 +5993,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     }
 
     sendOne_(item).then(result => {
+      warnSkipped_(result);
       // Patch the one record we just wrote instead of re-fetching the
       // whole list — see the note above applyConfirmedCreate_.
       if(item.kind === 'create') applyConfirmedCreate_(item, result);
@@ -6009,7 +6047,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
         remark: item.remark || '',
         auditor: item.auditor || ''
       });
-      return { row: data.row };
+      return { row: data.row, skipped: data.skipped };
     }
     if(item.kind === 'update'){
       const data = await apiCallJson_('updateCustomerFull', {
@@ -6021,7 +6059,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
         remark: item.remark || '',
         auditor: item.auditor || ''
       });
-      return { row: data.row };
+      return { row: data.row, skipped: data.skipped };
     }
     if(item.kind === 'delete'){
       await apiCallJson_('deleteCustomer', { opId: item.id, row: item.row });
@@ -6129,6 +6167,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
         }
 
         const result = await sendOne_(item);
+        warnSkipped_(result);
 
         if(item.kind === 'create'){
           // Fix up local optimistic row + any later queued items that
@@ -7854,6 +7893,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
 
   // ---- Customer card context menu (long-press / right-click) --------
   let ctxMenuRow_ = null;
+  let ctxReturnFocusEl_ = null; // card to give focus back to when the menu was opened by keyboard
   let suppressCardClick_ = false; // set right before a long-press opens the menu, so the click that follows touchend on mobile doesn't also open the edit modal underneath it
 
   function closeCtxMenu_(){
@@ -7908,7 +7948,27 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     if(!rec || !rec.dataset.row) return; // not a real card (e.g. the empty-branch sample card)
     if(e.target.closest('.quick-info') || e.target.closest('[data-act]')) return;
     e.preventDefault();
-    openCtxMenuFor_(Number(rec.dataset.row), e.clientX, e.clientY);
+    // Opened from the keyboard (Menu key / Shift+F10) there is no real
+    // pointer position (0,0): anchor to the card and move focus into the menu.
+    const viaKeyboard = (e.clientX === 0 && e.clientY === 0);
+    let x = e.clientX, y = e.clientY;
+    if(viaKeyboard){
+      const r = rec.getBoundingClientRect();
+      x = r.left + 24;
+      y = Math.min(Math.max(r.top + 24, 8), window.innerHeight - 80);
+    }
+    ctxReturnFocusEl_ = viaKeyboard ? rec : null;
+    openCtxMenuFor_(Number(rec.dataset.row), x, y);
+    if(viaKeyboard){
+      const b = document.querySelector('#customerCtxMenu [data-act="ctx-toggle-hide"]');
+      if(b) b.focus();
+    }
+  });
+  document.addEventListener('keydown', (e)=>{
+    if(e.key !== 'Escape' || ctxMenuRow_ === null) return;
+    const back = ctxReturnFocusEl_;
+    closeCtxMenu_();
+    if(back && document.contains(back)) back.focus();
   });
 
   // Long-press (touch) — held ~500ms without the finger drifting far
@@ -8702,6 +8762,50 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       });
     });
   }
+
+  // ---- Keyboard access for clickable non-button elements -------------------
+  // Customer cards, branch names, notifications, preview rows and the small
+  // "Retry" / "Needs attention" links were mouse/touch only. This makes each
+  // one reachable with Tab and activated with Enter or Space, and gives it a
+  // role + name for screen readers. (Cards also open the Hide menu with the
+  // Menu key or Shift+F10.) It also covers anything re-drawn later.
+  (function(){
+    const SEL = '.rec[data-row], .notif-item, .preview-row, .p-name-wrap, .retry-link, .tag-pending.err';
+    function enhance(el){
+      if(el.__kb) return;
+      el.__kb = true;
+      el.tabIndex = 0;
+      if(el.matches('.rec')){
+        const n = el.querySelector('.cust-name');
+        el.setAttribute('role', 'group');
+        el.setAttribute('aria-label', (n ? n.textContent.trim() : 'Customer') + ' \u2014 press Enter to open');
+      } else {
+        const hasInner = el.querySelector('button, input, select, textarea, a[href]');
+        el.setAttribute('role', hasInner ? 'group' : 'button');
+      }
+    }
+    function scan(root){
+      if(!root || root.nodeType !== 1) return;
+      if(root.matches(SEL)) enhance(root);
+      root.querySelectorAll(SEL).forEach(enhance);
+    }
+    document.addEventListener('keydown', (e)=>{
+      const el = e.target;
+      if(!el || el.nodeType !== 1 || !el.matches(SEL)) return;
+      if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){
+        e.preventDefault();
+        el.click();
+      }
+    });
+    let queued = [], scheduled = false;
+    new MutationObserver((muts)=>{
+      muts.forEach(m => m.addedNodes.forEach(n => queued.push(n)));
+      if(scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(()=>{ scheduled = false; const q = queued; queued = []; q.forEach(scan); });
+    }).observe(document.body, { childList: true, subtree: true });
+    scan(document.body);
+  })();
 </script>
 </body>
 </html>
