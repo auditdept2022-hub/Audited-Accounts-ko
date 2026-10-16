@@ -4342,6 +4342,9 @@
   let overlayGuardOpen_ = false;
   let branchGuardOpen_ = false;
   let suppressNextPopstate_ = false;
+  // Phone only: the notification bell panel (a bottom sheet under 640px) gets its
+  // own history entry, so the phone's Back button/gesture closes it first.
+  let notifPanelGuardOpen_ = false;
   // Extra nesting layer, only for the specific case of opening the edit
   // modal from a row inside Preview. Preview and the edit modal normally
   // share the single 'overlay' guard (they don't nest against anything
@@ -4388,6 +4391,11 @@
       // closed itself via the X/Cancel/Save/Home/etc.) — nothing left to
       // undo here, just absorb this one silently.
       suppressNextPopstate_ = false;
+      return;
+    }
+    // The notification panel sits above everything else, so it goes first.
+    if(notifPanelGuardOpen_){
+      closeNotifPanel_(true);
       return;
     }
     // A genuine back-button/gesture press. Undo whichever layer is
@@ -5035,8 +5043,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   // customer-name breakdown from pendingSyncGroups_() plus a Sync now
   // button, rather than the usual import matched/unmatched view.
   function openPendingSyncDetail_(){
-    document.getElementById('notifPanel').style.display = 'none';
-    if(openPositionedMenu_ && openPositionedMenu_.menuEl === document.getElementById('notifPanel')) openPositionedMenu_ = null;
+    hideNotifPanelForDetail_();
     const pending = outbox.length;
     document.getElementById('notifDetailTitle').textContent = 'Waiting to sync';
     document.getElementById('notifDetailMeta').textContent = pending
@@ -5096,8 +5103,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   function openNotifDetail_(idx){
     const n = notifications_[idx];
     if(!n) return;
-    document.getElementById('notifPanel').style.display = 'none';
-    if(openPositionedMenu_ && openPositionedMenu_.menuEl === document.getElementById('notifPanel')) openPositionedMenu_ = null;
+    hideNotifPanelForDetail_();
     document.getElementById('notifDetailMeta').textContent = new Date(n.ts).toLocaleString();
     document.getElementById('notifDetailSyncBtn').style.display = 'none';
 
@@ -5144,14 +5150,17 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     const btn = document.getElementById('notifBtn');
     const isOpen = panel.style.display !== 'none';
     if(isOpen){
-      panel.style.display = 'none';
-      if(openPositionedMenu_ && openPositionedMenu_.menuEl === panel) openPositionedMenu_ = null;
+      closeNotifPanel_();
     } else {
       // Render first so still-unread items show highlighted for this
       // viewing, THEN mark them read for next time — items themselves
       // are kept in the list either way.
       renderNotifList_();
       panel.style.display = 'block';
+      if(window.innerWidth <= 640 && !notifPanelGuardOpen_){
+        notifPanelGuardOpen_ = true;
+        history.pushState({ aaGuard: 'notif-panel' }, '');
+      }
       // Desktop: anchor + viewport-clamp under the bell button, same
       // helper the view/status filter menus use, so it can't get cut
       // off by any ancestor's overflow:hidden. Mobile keeps its own
@@ -5187,10 +5196,43 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     const panel = document.getElementById('notifPanel');
     const btn = document.getElementById('notifBtn');
     if(panel && panel.style.display !== 'none' && !panel.contains(e.target) && btn && !btn.contains(e.target)){
-      panel.style.display = 'none';
-      if(openPositionedMenu_ && openPositionedMenu_.menuEl === panel) openPositionedMenu_ = null;
+      closeNotifPanel_();
     }
   });
+
+  // Closes the bell panel by any route (bell again, tap outside, Escape, Back).
+  // fromPopstate = the phone's Back already removed the history entry.
+  function closeNotifPanel_(fromPopstate){
+    const panel = document.getElementById('notifPanel');
+    if(panel) panel.style.display = 'none';
+    if(openPositionedMenu_ && panel && openPositionedMenu_.menuEl === panel) openPositionedMenu_ = null;
+    if(notifPanelGuardOpen_){
+      notifPanelGuardOpen_ = false;
+      if(!fromPopstate){
+        suppressNextPopstate_ = true;
+        history.back();
+      }
+    }
+  }
+
+  // Tapping a notification closes the panel and opens a detail screen. Instead
+  // of undoing the panel's history entry and pushing a new one (two async
+  // history steps that can race), the same entry is handed to the detail
+  // screen, so one Back press closes the detail and lands on the dashboard.
+  function hideNotifPanelForDetail_(){
+    const panel = document.getElementById('notifPanel');
+    if(panel) panel.style.display = 'none';
+    if(openPositionedMenu_ && panel && openPositionedMenu_.menuEl === panel) openPositionedMenu_ = null;
+    if(notifPanelGuardOpen_){
+      notifPanelGuardOpen_ = false;
+      if(!overlayGuardOpen_){
+        overlayGuardOpen_ = true;
+      } else {
+        suppressNextPopstate_ = true;
+        history.back();
+      }
+    }
+  }
 
 
   // Escapes a branch name for safe embedding inside a single-quoted JS
@@ -8671,6 +8713,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   document.getElementById('newProfileName').addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); createProfile_(); } });
   document.addEventListener('keydown', e=>{
     if(e.key === 'Escape'){
+      closeNotifPanel_();
       closeModal();
       closeProfileMenu();
       closeRemarksCountMenu_();
