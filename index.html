@@ -19,7 +19,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 <!-- SheetJS: lets Import also accept real Excel files (.xls / .xlsx), not just .csv -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- SheetJS (Excel import/export, ~1MB) is NOT loaded here any more: it blocked the
+     page from starting on every visit. ensureXlsxLoaded_() loads it the first time
+     you actually import or export. -->
 <style>
   :root{
     --ink:#1E3A8A;
@@ -538,6 +540,7 @@
   .card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;z-index:2;background:var(--ink);}
   .table-wrap{overflow-x:auto;}
 
+  .load-more-sentinel{text-align:center;padding:14px 0 22px;font-size:12px;color:#6B7280;}
   .rec-list{display:flex;flex-direction:column;gap:9px;padding:12px;background:linear-gradient(180deg,#F7F8FC,transparent 120px);}
   @keyframes rec-fade-in{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
   .rec{
@@ -3102,8 +3105,25 @@
     return rows.filter(r => r.trim() !== '').map(r => csvSplitLine_(r));
   }
 
+  // Loads the Excel library (SheetJS) only when it is first needed.
+  // Resolves true when ready, false if it could not be downloaded.
+  let xlsxLoadPromise_ = null;
+  function ensureXlsxLoaded_(){
+    if(typeof XLSX !== 'undefined') return Promise.resolve(true);
+    if(xlsxLoadPromise_) return xlsxLoadPromise_;
+    xlsxLoadPromise_ = new Promise(resolve => {
+      const el = document.createElement('script');
+      el.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      el.onload = () => resolve(typeof XLSX !== 'undefined');
+      el.onerror = () => { xlsxLoadPromise_ = null; resolve(false); };
+      document.head.appendChild(el);
+    });
+    return xlsxLoadPromise_;
+  }
+
   // Reads an .xls/.xlsx file into one matrix per sheet, via SheetJS.
   async function excelToMatrices_(file){
+    if(!(await ensureXlsxLoaded_())) throw new Error('Excel support failed to load — check your connection or re-save as CSV.');
     const buf = await readFileAsArrayBuffer_(file);
     const wb = XLSX.read(buf, { type: 'array', cellDates: true });
     return wb.SheetNames.map(name => ({
@@ -3219,9 +3239,9 @@
   // narrow default — money and remarks columns show truncated/"###"
   // until the person manually drags each one wider. Sizing them here
   // means the file opens readable immediately.
-  function exportCSV(){
+  async function exportCSV(){
     if(!customers.length){ toast('Nothing to export yet.'); return; }
-    if(typeof XLSX === 'undefined'){ toast('Excel export failed to load — please refresh and try again.'); return; }
+    if(!(await ensureXlsxLoaded_())){ toast('Excel export failed to load — check your connection and try again.'); return; }
 
     const headers = FIELDS.map(f => f.label).concat(['Date of Audit', 'Remarks', 'Old Remarks']);
     const rows = customers.map(c=>{
@@ -3413,7 +3433,7 @@
           if(!records.length) toast(file.name + ': columns found, but no data rows matched.');
           allRecords = allRecords.concat(records);
         } else if(ext === 'xls' || ext === 'xlsx'){
-          if(typeof XLSX === 'undefined'){ toast('Excel support failed to load — try re-saving as CSV.'); continue; }
+          if(!(await ensureXlsxLoaded_())){ toast('Excel support failed to load — try re-saving as CSV.'); continue; }
           const sheets = await excelToMatrices_(file);
           let fileRecords = [];
           sheets.forEach(({ matrix }) => {
@@ -3748,7 +3768,7 @@
       try{
         let sheets;
         if(ext === 'xls' || ext === 'xlsx'){
-          if(typeof XLSX === 'undefined'){ toast('Excel support failed to load — try again.'); continue; }
+          if(!(await ensureXlsxLoaded_())){ toast('Excel support failed to load — try again.'); continue; }
           sheets = await excelToMatrices_(file);
         } else if(ext === 'csv'){
           const text = await readFileAsText_(file);
@@ -7092,6 +7112,30 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   // memory, no behavior change — output is identical either way.
   const rowHtmlCache = new Map();
 
+  // ---- Draw the list in chunks ------------------------------------------
+  // With hundreds of customers, building every card at once is slow
+  // (especially on a phone). Only the first INITIAL_RENDER_COUNT are drawn;
+  // more are added as you scroll near the bottom. Search, filters, select-all,
+  // print and export still use the FULL list (they read the data, not the
+  // cards on screen).
+  const INITIAL_RENDER_COUNT = 60;
+  const RENDER_CHUNK = 80;
+  let renderLimit_ = INITIAL_RENDER_COUNT;
+  let lastRenderViewKey_ = null;
+  let loadMoreObserver_ = null;
+  function observeLoadMore_(){
+    const el = document.getElementById('loadMoreSentinel');
+    if(!el) return;
+    if(!('IntersectionObserver' in window)){ renderLimit_ = 1e9; render(); return; }
+    if(!loadMoreObserver_){
+      loadMoreObserver_ = new IntersectionObserver(entries => {
+        if(entries.some(e => e.isIntersecting)){ renderLimit_ += RENDER_CHUNK; render(); }
+      }, { rootMargin: '800px 0px' });
+    }
+    loadMoreObserver_.disconnect();
+    loadMoreObserver_.observe(el);
+  }
+
   function rowSignature_(c, isConflict, mark, idx){
     // Drafts (unsaved current-remark / new-remark text sitting in
     // localStorage) are folded into the signature too, so a row whose
@@ -7476,6 +7520,17 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     const filtered = getFilteredCustomers();
     updateRemarksCountBadge_();
 
+    // A new search / filter / branch starts again from the top of the list.
+    const viewKey_ = [
+      document.getElementById('searchBox').value.trim().toLowerCase(),
+      remarkFilterValue_,
+      Array.from(selectedStatuses_).sort().join('|'),
+      showHiddenView_ ? 'h' : 'n',
+      currentSheet
+    ].join('\u0001');
+    if(viewKey_ !== lastRenderViewKey_){ lastRenderViewKey_ = viewKey_; renderLimit_ = INITIAL_RENDER_COUNT; }
+    const shown = Math.min(filtered.length, renderLimit_);
+
     // A branch with zero customers (freshly created, nothing imported or
     // added yet) is a different situation from a search/filter just
     // turning up no matches — in the first case there's nothing to
@@ -7492,9 +7547,9 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       return;
     }
 
-    const parts = new Array(filtered.length);
+    const parts = new Array(shown);
 
-    for(let i = 0; i < filtered.length; i++){
+    for(let i = 0; i < shown; i++){
       const c = filtered[i];
       const isConflict = conflictRows.has(c.row);
       const mark = c.marker || '';
@@ -7605,7 +7660,10 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     }
 
     // Single DOM write avoids a reflow per row.
-    document.getElementById('tableBody').innerHTML = parts.join('');
+    const hasMore = filtered.length > shown;
+    document.getElementById('tableBody').innerHTML = parts.join('') +
+      (hasMore ? '<div id="loadMoreSentinel" class="load-more-sentinel">Showing ' + shown + ' of ' + filtered.length + ' — scroll for more…</div>' : '');
+    if(hasMore) observeLoadMore_();
 
     // Checkbox "checked" state is intentionally NOT part of rowSignature_/
     // the per-row HTML cache above (selecting/deselecting shouldn't force
