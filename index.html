@@ -264,6 +264,18 @@
     display:block;width:100%;min-height:min(52dvh, 420px);
     font-size:14px;line-height:1.65;resize:vertical;
   }
+  /* The pad is a column: toolbar, textarea (takes the leftover height) and
+     the status line, so the text box — not the whole popup — scrolls while
+     you type and nothing has to jump when the phone keyboard opens. */
+  #notepadOverlay .modal-body{display:flex;flex-direction:column;}
+  #notepadOverlay .notepad-area{flex:1 1 auto;}
+  #notepadOverlay .notepad-toolbar, #notepadOverlay .notepad-meta{flex:0 0 auto;}
+  /* Phone keyboard is up: the screen is short, so shrink the header/footer
+     (JS adds .kb-open, see notepadFitViewport_). */
+  #notepadOverlay.kb-open .modal-head{padding:8px 14px 12px;}
+  #notepadOverlay.kb-open .modal-head .meta{display:none;}
+  #notepadOverlay.kb-open .modal-body{padding:10px 14px;}
+  #notepadOverlay.kb-open .modal-foot{padding:8px 14px;}
   .notepad-meta{
     display:flex;justify-content:space-between;align-items:center;gap:10px;
     margin-top:8px;font-size:11.5px;color:var(--muted-2);font-family:'Inter',sans-serif;
@@ -1453,6 +1465,11 @@
     .modal-head{padding:calc(16px + var(--safe-t)) 18px 24px;}
     .modal-body{padding:18px;}
     .modal-foot{padding:14px 18px calc(14px + var(--safe-b));flex-wrap:wrap;}
+    /* Notepad: fill whatever area is really visible (JS keeps the overlay's
+       top/height equal to the visual viewport, so the phone keyboard shrinks
+       the pad instead of pushing it up off the screen). */
+    #notepadOverlay .modal{height:100%;max-height:100%;}
+    #notepadOverlay .notepad-area{min-height:0;resize:none;}
     /* The preview list's own internal scroll cap can grow now that the
        whole modal fills the screen — let it use the remaining body
        height instead of a fixed 60vh. */
@@ -4871,11 +4888,42 @@
     notepadSaveTimer_ = setTimeout(notepadSaveNow_, 350);
   }
 
+  // Phone keyboard handling. On most phones the keyboard does NOT shrink the
+  // fixed full-screen popup; the browser instead scrolls/slides the page up
+  // to keep the cursor in view, so the pad appeared to "go up". Fix: keep the
+  // overlay exactly on top of the visible area (the visual viewport) and let
+  // the text box shrink to fit.
+  let notepadBaseH_ = 0;
+  let notepadBaseW_ = 0;
+  function notepadFitViewport_(){
+    const ov = document.getElementById('notepadOverlay');
+    const vv = window.visualViewport;
+    if(!ov || !vv || !notepadIsOpen_()) return;
+    if(Math.round(vv.width) !== notepadBaseW_){ notepadBaseW_ = Math.round(vv.width); notepadBaseH_ = 0; } // rotated
+    notepadBaseH_ = Math.max(notepadBaseH_, window.innerHeight, vv.height);
+    ov.style.bottom = 'auto';
+    ov.style.top = vv.offsetTop + 'px';
+    ov.style.height = vv.height + 'px';
+    ov.classList.toggle('kb-open', vv.height < notepadBaseH_ - 120);
+  }
+  function notepadResetViewport_(){
+    const ov = document.getElementById('notepadOverlay');
+    if(!ov) return;
+    ov.style.top = ''; ov.style.bottom = ''; ov.style.height = '';
+    ov.classList.remove('kb-open');
+    notepadBaseH_ = 0;
+  }
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', notepadFitViewport_);
+    window.visualViewport.addEventListener('scroll', notepadFitViewport_);
+  }
+
   function openNotepad_(){
     // Show first, then fill — same order as the draft report, so the
     // textarea has a real layout when we place the caret.
     document.getElementById('notepadOverlay').style.display = 'flex';
     lockBodyScroll();
+    notepadFitViewport_();
     // Phone Back button/gesture: give the notepad its own history entry
     // (same shared 'overlay' layer the notification popup, Preview and
     // branch menu use) so Back closes it instead of leaving the app.
@@ -4888,7 +4936,10 @@
     notepadSetStatus_(notepadIsPending_() ? 'Syncing\u2026' : 'Saved', false);
     notepadUpdateCount_();
     try{
-      ta.focus({ preventScroll: true });
+      // On a phone, don't pop the keyboard up just for opening the pad (it
+      // covers the note); tapping the text box opens it.
+      const touchOnly = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+      if(!touchOnly) ta.focus({ preventScroll: true });
       ta.setSelectionRange(ta.value.length, ta.value.length);
     }catch(e){ /* focus is best-effort */ }
     // Show the local copy instantly (above), then fetch the newest shared note.
@@ -4901,6 +4952,7 @@
     if(!notepadIsOpen_()) return;
     notepadSaveNow_(true);
     document.getElementById('notepadOverlay').style.display = 'none';
+    notepadResetViewport_();
     unlockBodyScroll();
     // Closed by X / Done / Esc: walk the history entry we pushed back.
     // (fromPopstate = the phone Back press already consumed it.)
