@@ -714,6 +714,7 @@
   .mark-btn.mark-btn-yellow{background:linear-gradient(160deg,#F7D157,#DFA800);border-color:#c79300;color:#57420A;box-shadow:0 3px 9px rgba(223,168,0,.32);}
   .mark-btn.mark-btn-red{background:linear-gradient(160deg,#EF6E64,#D93636);border-color:#c22f2f;color:#fff;box-shadow:0 3px 9px rgba(217,54,54,.32);}
   .mark-btn.mark-btn-sky{background:linear-gradient(160deg,#5CC0EA,#2196C9);border-color:#1c84b3;color:#fff;box-shadow:0 3px 9px rgba(33,150,201,.32);}
+  .mark-btn.mark-btn-violet{background:linear-gradient(160deg,#A678EE,#6B3FD0);border-color:#5E34BA;color:#fff;box-shadow:0 3px 9px rgba(107,63,208,.34);}
   @media (hover:none), (pointer:coarse){
     .mark-btn{width:34px;height:34px;}
     .mark-btn svg{width:15px;height:15px;}
@@ -721,14 +722,18 @@
 
   /* Whole-card highlight once a color is picked — tints the card body,
      not just the left accent bar, so it reads clearly at a glance. */
-  .rec.marked-green{background:#E9F8F0;border-color:#9EDBB9;}
+  .rec.marked-green{background:#CDEFDC;border-color:#43B077;box-shadow:0 2px 8px rgba(31,157,91,.18);}
   .rec.marked-green::before{background:#1F9D5B;}
-  .rec.marked-yellow{background:#FFF8DE;border-color:#EBCE6E;}
+  .rec.marked-yellow{background:#FFEDA8;border-color:#DDB22F;box-shadow:0 2px 8px rgba(217,164,0,.20);}
   .rec.marked-yellow::before{background:#D9A400;}
-  .rec.marked-red{background:#FCEAE8;border-color:#EDA79F;}
+  .rec.marked-red{background:#F9CDC9;border-color:#E2766C;box-shadow:0 2px 8px rgba(217,54,54,.18);}
   .rec.marked-red::before{background:#D93636;}
-  .rec.marked-sky{background:#E7F5FC;border-color:#9BCDE9;}
+  .rec.marked-sky{background:#C8E7F8;border-color:#5BAEDB;box-shadow:0 2px 8px rgba(33,150,201,.18);}
   .rec.marked-sky::before{background:#2196C9;}
+  .rec.marked-violet{background:#E1D2FA;border-color:#A27BE4;box-shadow:0 2px 8px rgba(124,77,219,.20);}
+  .rec.marked-violet::before{background:#7C4DDB;}
+  /* a thicker accent bar on highlighted cards so the color reads at a glance */
+  .rec[class*="marked-"]::before{width:6px;top:8px;bottom:8px;}
 
   /* Floating color popover — one shared instance, positioned next to
      whichever card's mark button was clicked. Redesigned from a bare row
@@ -869,7 +874,7 @@
   .rec.is-selected::before{background:var(--accent);}
   .mark-option{display:flex;align-items:center;gap:10px;border:none;background:none;border-radius:9px;padding:8px 9px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text);text-align:left;width:100%;touch-action:manipulation;transition:background .12s ease;}
   .mark-option:hover{background:#F4F5FB;}
-  .mark-option.active{background:var(--accent-soft);}
+  .mark-option.active{background:var(--accent-soft);box-shadow:inset 0 0 0 2px var(--accent);}
   .mark-option.clear{border-top:1px solid var(--line);margin-top:4px;padding-top:9px;color:var(--muted);}
   .mark-swatch{width:17px;height:17px;border-radius:6px;flex-shrink:0;border:1.5px solid rgba(16,22,60,.10);}
 
@@ -887,18 +892,31 @@
   .mini-mark-swatch[data-color="green"]{background:linear-gradient(160deg,#3FCB88,#1C9A57);border-color:#1c8a50;}
   .mini-mark-swatch[data-color="yellow"]{background:linear-gradient(160deg,#F7D157,#DFA800);border-color:#c79300;}
   .mini-mark-swatch[data-color="red"]{background:linear-gradient(160deg,#EF6E64,#D93636);border-color:#c22f2f;}
-  .mini-mark-swatch[data-color="sky"]{background:linear-gradient(160deg,#5CC0EA,#2196C9);border-color:#1c84b3;}
+  .mini-mark-swatch[data-color="sky"]{background:linear-gradient(160deg,#4DB6E6,#1B8EC4);border-color:#176f9a;}
+  .mini-mark-swatch[data-color="violet"]{background:linear-gradient(160deg,#A678EE,#6B3FD0);border-color:#5E34BA;}
   .mini-mark-swatch.clear{color:#AFB4CF;font-size:9px;line-height:1;display:flex;align-items:center;justify-content:center;}
-  .mini-mark-swatch.active{box-shadow:0 0 0 2px #fff,0 0 0 3.5px var(--accent);}
+  /* Selected color: a thick DARK ring + slightly bigger + a white check, so
+     it is easy to see which one is picked even on a small phone screen. */
+  .mini-mark-swatch{position:relative;}
+  .mini-mark-swatch.active{
+    transform:scale(1.15);
+    box-shadow:0 0 0 2px #fff,0 0 0 4.5px #10163C;
+  }
+  .mini-mark-swatch.active:not(.clear)::after{
+    content:'\2713';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:11px;font-weight:900;line-height:1;text-shadow:0 0 3px rgba(0,0,0,.65);
+  }
+  .mini-mark-swatch.active.clear{color:#10163C;background:#E4E7F5;}
   @media (hover:none), (pointer:coarse){
     .mini-mark-swatch{width:20px;height:20px;}
   }
   .mark-swatch[data-color="green"]{background:#33B872;}
   .mark-swatch[data-color="yellow"]{background:#F0C22B;}
   .mark-swatch[data-color="red"]{background:#E4544A;}
-  .mark-swatch[data-color="sky"]{background:#3FAADD;}
+  .mark-swatch[data-color="sky"]{background:#2F9FD8;}
+  .mark-swatch[data-color="violet"]{background:#7C4DDB;}
   .mark-swatch[data-color=""]{background:#fff;}
-  .mark-option .check{margin-left:auto;color:var(--accent);font-weight:800;font-size:12px;opacity:0;flex-shrink:0;}
+  .mark-option .check{margin-left:auto;color:var(--accent);font-weight:900;font-size:14px;opacity:0;flex-shrink:0;}
   .mark-option.active .check{opacity:1;}
 
   /* Customer card context menu — opened by long-press (touch) or
@@ -1275,14 +1293,16 @@
      glance in the preview list, not just on the card. Takes priority
      over the plain "no remarks yet" red below: a colored customer keeps
      its color even if it also has no remarks. */
-  .preview-row.pr-marked-green{background:#E9F8F0;border-color:#9EDBB9;}
-  .preview-row.pr-marked-green:hover{background:#DDF3E7;}
-  .preview-row.pr-marked-yellow{background:#FFF8DE;border-color:#EBCE6E;}
-  .preview-row.pr-marked-yellow:hover{background:#FCF1C4;}
-  .preview-row.pr-marked-red{background:#FCEAE8;border-color:#EDA79F;}
-  .preview-row.pr-marked-red:hover{background:#F9DBD8;}
-  .preview-row.pr-marked-sky{background:#E7F5FC;border-color:#9BCDE9;}
-  .preview-row.pr-marked-sky:hover{background:#D9EDF9;}
+  .preview-row.pr-marked-green{background:#CDEFDC;border-color:#43B077;}
+  .preview-row.pr-marked-green:hover{background:#BDE8D0;}
+  .preview-row.pr-marked-yellow{background:#FFEDA8;border-color:#DDB22F;}
+  .preview-row.pr-marked-yellow:hover{background:#FFE48A;}
+  .preview-row.pr-marked-red{background:#F9CDC9;border-color:#E2766C;}
+  .preview-row.pr-marked-red:hover{background:#F5B9B3;}
+  .preview-row.pr-marked-sky{background:#C8E7F8;border-color:#5BAEDB;}
+  .preview-row.pr-marked-sky:hover{background:#B4DDF3;}
+  .preview-row.pr-marked-violet{background:#E1D2FA;border-color:#A27BE4;}
+  .preview-row.pr-marked-violet:hover{background:#D3BFF6;}
   .pr-num{flex-shrink:0;width:22px;font-size:11px;color:var(--muted-2);text-align:right;font-family:'Inter',sans-serif;}
   .pr-main{flex:1;min-width:0;}
   .pr-name{font-weight:700;font-size:13px;color:var(--text);overflow-wrap:anywhere;line-height:1.3;}
@@ -1695,6 +1715,7 @@
             <button class="mark-option" data-color="yellow" data-act="mark-set"><span class="mark-swatch" data-color="yellow"></span><span>Yellow</span><span class="check">✓</span></button>
             <button class="mark-option" data-color="red" data-act="mark-set"><span class="mark-swatch" data-color="red"></span><span>Red</span><span class="check">✓</span></button>
             <button class="mark-option" data-color="sky" data-act="mark-set"><span class="mark-swatch" data-color="sky"></span><span>Sky blue</span><span class="check">✓</span></button>
+            <button class="mark-option" data-color="violet" data-act="mark-set"><span class="mark-swatch" data-color="violet"></span><span>Violet</span><span class="check">✓</span></button>
             <button class="mark-option clear" data-color="" data-act="mark-set"><span class="mark-swatch" data-color=""></span><span>Clear mark</span><span class="check">✓</span></button>
           </div>
           <div class="mark-popover" id="customerCtxMenu">
@@ -1738,6 +1759,7 @@
             <button type="button" class="mini-mark-swatch" data-color="yellow" title="Yellow"></button>
             <button type="button" class="mini-mark-swatch" data-color="red" title="Red"></button>
             <button type="button" class="mini-mark-swatch" data-color="sky" title="Sky blue"></button>
+            <button type="button" class="mini-mark-swatch" data-color="violet" title="Violet"></button>
             <button type="button" class="mini-mark-swatch clear" data-color="" title="Clear highlight"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
           </span>
         </div>
@@ -2166,7 +2188,7 @@
 
   // ---- Customer color markers ("Select" button on each card) -----------
   //
-  // A visual "I've handled this one" flag — green/yellow/red/sky blue —
+  // A visual "I've handled this one" flag — green/yellow/red/sky blue/violet —
   // set by tapping the round button on a card and picking a color from the
   // popover. This is saved as a real column on the customer's row (via the
   // same updateCustomer action normal edits use), so it shows up the same
