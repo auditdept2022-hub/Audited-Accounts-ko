@@ -1790,16 +1790,17 @@
   </div>
 </div>
 
-<!-- Notepad modal — a single shared note for every branch. Autosaves as you
-     type to one global localStorage key, so the text survives closing the
-     pad, switching branches, Home, and page reloads. Only the Clear button
-     (with a confirmation) removes it. -->
+<!-- Notepad modal — a single shared note for every branch AND every device.
+     Autosaves as you type to one global localStorage key (instant + offline
+     copy) and syncs to the Apps Script backend (getNotepad / saveNotepad), so
+     the PC and the phone see the same text. Only the Clear button (with a
+     confirmation) removes it. -->
 <div class="overlay" id="notepadOverlay">
   <div class="modal notepad-modal">
     <div class="modal-head">
       <div>
         <h2>Notepad</h2>
-        <div class="meta">Shared across all branches &middot; saved automatically</div>
+        <div class="meta">Shared across all branches and devices &middot; saved automatically</div>
       </div>
       <button class="modal-close" onclick="closeNotepad_()" aria-label="Close notepad"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
@@ -1812,7 +1813,7 @@
           Bullet
         </button>
       </div>
-      <textarea class="notepad-area" id="notepadText" placeholder="Type your notes here…" spellcheck="true" oninput="onNotepadInput_()"></textarea>
+      <textarea class="notepad-area" id="notepadText" placeholder="Type your notes here…" spellcheck="true" maxlength="60000" oninput="onNotepadInput_()"></textarea>
       <div class="notepad-meta">
         <span class="notepad-status" id="notepadStatus">Saved</span>
         <span id="notepadCount">0 characters</span>
@@ -2096,7 +2097,7 @@
   // and saved but not re-deployed via Deploy > Manage deployments >
   // pencil icon > New version — this shows a small warning banner
   // instead of silently running the dashboard against old backend code.
-  const APP_VERSION = '2026-10-15.1';
+  const APP_VERSION = '2026-10-29.1';
   let versionBannerShown_ = false;
   function checkVersionSync_(backendVersion){
     if(!backendVersion || backendVersion === APP_VERSION || versionBannerShown_) return;
@@ -4693,6 +4694,130 @@
   let notepadDirty_ = false;
   let notepadOwnsGuard_ = false; // true when the notepad pushed the history entry
 
+  // Cross-device sync. The note is ONE shared note for everybody (Code.gs:
+  // getNotepad / saveNotepad). localStorage stays as the instant/offline copy;
+  // 'pending' means "this device has text the server hasn't confirmed yet".
+  const NOTEPAD_PENDING_KEY = 'aa_notepad_pending_v1';
+  function notepadRevKey_(){ return 'aa_notepad_rev_v1:' + API_URL; }
+  let notepadRevMemory_ = null;
+  let notepadPending_ = false;
+  let notepadPushTimer_ = null;
+  let notepadPushing_ = false;
+  let notepadPushAgain_ = false;
+  try{ notepadPending_ = localStorage.getItem(NOTEPAD_PENDING_KEY) === '1'; }catch(e){ /* memory only */ }
+
+  function notepadIsPending_(){ return notepadPending_; }
+  function notepadSetPending_(v){
+    notepadPending_ = !!v;
+    try{
+      if(v) localStorage.setItem(NOTEPAD_PENDING_KEY, '1');
+      else localStorage.removeItem(NOTEPAD_PENDING_KEY);
+    }catch(e){ /* memory flag still works */ }
+  }
+  // null = this device has never synced with the server.
+  function notepadGetRev_(){
+    try{
+      const v = localStorage.getItem(notepadRevKey_());
+      if(v !== null) return Number(v) || 0;
+    }catch(e){ /* fall through */ }
+    return notepadRevMemory_;
+  }
+  function notepadSetRev_(rev){
+    notepadRevMemory_ = rev;
+    try{ localStorage.setItem(notepadRevKey_(), String(rev)); }catch(e){ /* best-effort */ }
+  }
+  function notepadCurrentText_(){
+    return notepadIsOpen_() ? document.getElementById('notepadText').value : notepadLoad_();
+  }
+  // Puts text into the local copy (and the box, if the pad is open).
+  function notepadApplyText_(text){
+    notepadMemory_ = text;
+    try{ localStorage.setItem(NOTEPAD_STORAGE_KEY, text); }catch(e){ /* memory copy still set */ }
+    if(notepadIsOpen_()){
+      const ta = document.getElementById('notepadText');
+      ta.value = text;
+      notepadUpdateCount_();
+      try{ ta.setSelectionRange(text.length, text.length); }catch(e){ /* best-effort */ }
+    }
+  }
+  function notepadSchedulePush_(ms){
+    clearTimeout(notepadPushTimer_);
+    notepadPushTimer_ = setTimeout(notepadPush_, ms);
+  }
+
+  // Sends this device's text to the server. A stale save (someone else saved
+  // first) comes back as a conflict: nothing is thrown away — the server's
+  // text is kept and this device's text goes underneath it.
+  async function notepadPush_(){
+    if(!API_URL) return;
+    if(notepadPushing_){ notepadPushAgain_ = true; return; }
+    notepadPushing_ = true;
+    try{
+      let loops = 0;
+      do{
+        notepadPushAgain_ = false;
+        if(!notepadIsPending_()) break;
+        const text = notepadCurrentText_();
+        const baseRev = notepadGetRev_() || 0;
+        let data;
+        try{
+          const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'saveNotepad', text: text, baseRev: baseRev }) });
+          data = await parseJsonResponse_(res);
+        }catch(e){
+          if(notepadIsOpen_()) notepadSetStatus_('Saved on this device \u00b7 will sync when online', false);
+          return;
+        }
+        if(data.error){
+          if(notepadIsOpen_()) notepadSetStatus_('Could not sync: ' + data.error, true);
+          return;
+        }
+        if(data.conflict){
+          const cur = notepadCurrentText_();
+          const serverText = data.text || '';
+          let merged = cur;
+          if(serverText && serverText !== cur){
+            merged = cur
+              ? serverText + '\n\n\u2014 changes from this device \u2014\n' + cur
+              : serverText;
+          }
+          notepadApplyText_(merged);
+          notepadSetRev_(data.rev);
+          notepadPushAgain_ = true;
+          continue;
+        }
+        notepadSetRev_(data.rev);
+        if(notepadCurrentText_() === text){
+          notepadSetPending_(false);
+          if(notepadIsOpen_() && !notepadDirty_) notepadSetStatus_('Saved', false);
+        }else{
+          notepadPushAgain_ = true;   // typed more while we were sending
+        }
+      }while(notepadPushAgain_ && ++loops < 5);
+    }finally{
+      notepadPushing_ = false;
+    }
+  }
+
+  // Loads the latest shared note from the server (used when the pad opens).
+  async function notepadPull_(){
+    if(!API_URL) return;
+    // A note typed on this device before syncing existed counts as unsynced.
+    if(notepadGetRev_() === null && notepadLoad_() !== '') notepadSetPending_(true);
+    if(notepadIsPending_()){ notepadPush_(); return; }
+    let data;
+    try{
+      const res = await fetch(API_URL + '?action=getNotepad&_=' + Date.now(), { cache: 'no-store' });
+      data = await parseJsonResponse_(res);
+    }catch(e){ return; }   // offline: keep showing the local copy
+    if(!data || data.error || typeof data.text !== 'string') return;
+    if(notepadIsPending_()) return;                       // typed while we were fetching
+    if(notepadIsOpen_() && notepadDirty_) return;
+    if(notepadGetRev_() === data.rev) return;             // already up to date
+    notepadApplyText_(data.text);
+    notepadSetRev_(data.rev);
+    if(notepadIsOpen_()) notepadSetStatus_('Saved', false);
+  }
+
   function notepadIsOpen_(){
     const o = document.getElementById('notepadOverlay');
     return !!o && o.style.display === 'flex';
@@ -4720,7 +4845,7 @@
     document.getElementById('notepadCount').textContent = n + (n === 1 ? ' character' : ' characters');
   }
 
-  function notepadSaveNow_(){
+  function notepadSaveNow_(immediate){
     clearTimeout(notepadSaveTimer_);
     notepadSaveTimer_ = null;
     const text = document.getElementById('notepadText').value;
@@ -4728,10 +4853,14 @@
     try{
       localStorage.setItem(NOTEPAD_STORAGE_KEY, text);
       notepadDirty_ = false;
-      notepadSetStatus_('Saved', false);
     }catch(e){
+      // Still try the server below; it may be able to keep the note.
       notepadSetStatus_('Could not save on this device', true);
     }
+    notepadSetPending_(true);
+    if(!notepadDirty_) notepadSetStatus_('Syncing\u2026', false);
+    if(immediate === true) notepadPush_();
+    else notepadSchedulePush_(700);
   }
 
   function onNotepadInput_(){
@@ -4756,19 +4885,21 @@
     const ta = document.getElementById('notepadText');
     ta.value = notepadLoad_();
     notepadDirty_ = false;
-    notepadSetStatus_('Saved', false);
+    notepadSetStatus_(notepadIsPending_() ? 'Syncing\u2026' : 'Saved', false);
     notepadUpdateCount_();
     try{
       ta.focus({ preventScroll: true });
       ta.setSelectionRange(ta.value.length, ta.value.length);
     }catch(e){ /* focus is best-effort */ }
+    // Show the local copy instantly (above), then fetch the newest shared note.
+    notepadPull_();
   }
 
   function closeNotepad_(fromPopstate){
     // Only act when it is actually open — otherwise the (possibly stale)
     // textarea contents could overwrite a newer value saved elsewhere.
     if(!notepadIsOpen_()) return;
-    notepadSaveNow_();
+    notepadSaveNow_(true);
     document.getElementById('notepadOverlay').style.display = 'none';
     unlockBodyScroll();
     // Closed by X / Done / Esc: walk the history entry we pushed back.
@@ -4782,7 +4913,7 @@
     if(!confirm('Clear everything in the notepad? This cannot be undone.')) return;
     ta.value = '';
     notepadUpdateCount_();
-    notepadSaveNow_();
+    notepadSaveNow_(true);
     ta.focus();
   }
 
@@ -4876,11 +5007,20 @@
 
   // Flush any pending autosave if the tab is hidden/closed mid-typing.
   document.addEventListener('visibilitychange', () => {
-    if(document.visibilityState === 'hidden' && notepadIsOpen_() && notepadDirty_) notepadSaveNow_();
+    if(document.visibilityState === 'hidden' && notepadIsOpen_() && notepadDirty_) notepadSaveNow_(true);
+    // Coming back to this tab/app with the pad open: pick up edits made elsewhere.
+    if(document.visibilityState === 'visible' && notepadIsOpen_()) notepadPull_();
   });
   window.addEventListener('pagehide', () => {
-    if(notepadIsOpen_() && notepadDirty_) notepadSaveNow_();
+    if(notepadIsOpen_() && notepadDirty_) notepadSaveNow_(true);
   });
+  // Back online: send anything this device typed offline.
+  window.addEventListener('online', () => {
+    if(notepadIsPending_()) notepadPush_();
+    else if(notepadIsOpen_()) notepadPull_();
+  });
+  // App just loaded and an earlier edit never reached the server: send it.
+  setTimeout(() => { if(notepadIsPending_()) notepadPush_(); }, 3000);
 
   function saveDraftReportProgress_(){
     try{
