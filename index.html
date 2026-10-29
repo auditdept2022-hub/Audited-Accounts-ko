@@ -246,7 +246,7 @@
   .notif-btn:hover{background:rgba(237,239,249,.26);border-color:var(--gold);transform:translateY(-1px);}
   /* Draft-report button — sits beside the notification bell, same pill
      styling so the two read as a matched pair in the header. */
-  .draft-report-btn{
+  .draft-report-btn, .notepad-btn{
     position:relative;display:flex;align-items:center;justify-content:center;
     background:rgba(237,239,249,.14);border:1.5px solid rgba(255,215,140,.55);color:#EDEFF9;
     -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
@@ -254,7 +254,30 @@
     box-shadow:0 2px 8px rgba(6,10,36,.3), inset 0 0 0 1px rgba(255,255,255,.04);
     transition:background .15s,transform .15s,border-color .15s;
   }
-  .draft-report-btn:hover{background:rgba(237,239,249,.26);border-color:var(--gold);transform:translateY(-1px);}
+  .draft-report-btn:hover, .notepad-btn:hover{background:rgba(237,239,249,.26);border-color:var(--gold);transform:translateY(-1px);}
+
+  /* Notepad — one shared scratch pad for the whole app. Its text is kept
+     under a single branch-independent localStorage key, so switching
+     branches (or hitting Home) never touches it. */
+  .notepad-modal{max-width:560px;}
+  .notepad-area{
+    display:block;width:100%;min-height:min(52dvh, 420px);
+    font-size:14px;line-height:1.65;resize:vertical;
+  }
+  .notepad-meta{
+    display:flex;justify-content:space-between;align-items:center;gap:10px;
+    margin-top:8px;font-size:11.5px;color:var(--muted-2);font-family:'Inter',sans-serif;
+  }
+  .notepad-status.err{color:var(--del);font-weight:600;}
+  .notepad-toolbar{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
+  .notepad-tool{
+    display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:6px 12px;
+    border:1px solid #D7DCF0;border-radius:8px;background:#fff;color:var(--ink);
+    font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;
+    -webkit-tap-highlight-color:transparent;transition:background .12s,border-color .12s;
+  }
+  .notepad-tool:hover{background:#F4F5FB;border-color:var(--accent);}
+  .notepad-tool .svgicon{width:15px;height:15px;}
   .notif-badge{
     position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 3px;
     background:var(--del);color:#fff;border-radius:9px;font-size:9.5px;font-weight:800;
@@ -518,7 +541,7 @@
      centered padding instead of the wider text-button padding, so they
      take up noticeably less horizontal room in the toolbar. */
   .btn.icon-only{padding:9px;width:36px;height:36px;justify-content:center;gap:0;flex-shrink:0;}
-  .btn .svgicon, .icon-btn .svgicon, .hamburger-btn .svgicon, .hdr-sync-btn .svgicon, .modal-close .svgicon, .home-reset-btn .svgicon, .notif-btn .svgicon, .draft-report-btn .svgicon{width:14px;height:14px;flex-shrink:0;display:inline-block;vertical-align:middle;}
+  .btn .svgicon, .icon-btn .svgicon, .hamburger-btn .svgicon, .hdr-sync-btn .svgicon, .modal-close .svgicon, .home-reset-btn .svgicon, .notif-btn .svgicon, .draft-report-btn .svgicon, .notepad-btn .svgicon{width:14px;height:14px;flex-shrink:0;display:inline-block;vertical-align:middle;}
   .icon-btn{display:inline-flex;}
   .modal-close{display:inline-flex;align-items:center;justify-content:center;}
   .modal-close .svgicon{width:16px;height:16px;}
@@ -1357,7 +1380,7 @@
     .topband .hamburger-btn .brand-logo-icon{width:19px;height:19px;}
     .hdr-actions{gap:6px;}
     .topband .notif-btn{width:30px;height:30px;}
-    .topband .draft-report-btn{width:30px;height:30px;}
+    .topband .draft-report-btn, .topband .notepad-btn{width:30px;height:30px;}
     .home-reset-btn{
       padding:0;width:30px;height:30px;justify-content:center;border-radius:50%;
       font-size:10px;
@@ -1461,7 +1484,7 @@
     .hamburger-btn{min-width:38px;min-height:38px;}
     .hdr-sync-btn{min-width:26px;min-height:26px;}
     .modal-close{min-width:36px;min-height:36px;}
-    .draft-report-btn{min-width:36px;min-height:36px;}
+    .draft-report-btn, .notepad-btn{min-width:36px;min-height:36px;}
   }
 
   /* Keyboard focus: a clear ring on anything you can Tab to */
@@ -1489,6 +1512,12 @@
           <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
         </button>
       </div>
+      <!-- Notepad — shared scratch pad beside the bell. Text is saved under
+           one global key (not per branch), so it stays put when branches
+           are switched. See openNotepad_() below. -->
+      <button class="notepad-btn" onclick="playHdrIconFx_(this); openNotepad_()" aria-label="Notepad" id="notepadBtn" title="Notepad (shared across all branches)">
+        <svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="13" y2="15"/></svg>
+      </button>
       <!-- Draft report — placeholder action beside the bell; wire
            openDraftReport_() up to real report generation/download logic
            when that's ready. -->
@@ -1756,6 +1785,45 @@
       <div class="right">
         <button class="btn" onclick="closeNotifDetail_()">Close</button>
         <button class="btn primary" id="notifDetailSyncBtn" style="display:none;" onclick="closeNotifDetail_(); syncOutbox();">Sync now</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Notepad modal — a single shared note for every branch. Autosaves as you
+     type to one global localStorage key, so the text survives closing the
+     pad, switching branches, Home, and page reloads. Only the Clear button
+     (with a confirmation) removes it. -->
+<div class="overlay" id="notepadOverlay">
+  <div class="modal notepad-modal">
+    <div class="modal-head">
+      <div>
+        <h2>Notepad</h2>
+        <div class="meta">Shared across all branches &middot; saved automatically</div>
+      </div>
+      <button class="modal-close" onclick="closeNotepad_()" aria-label="Close notepad"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="notepad-toolbar">
+        <!-- mousedown preventDefault keeps the textarea focused (and the phone
+             keyboard open) and preserves the selection when this is tapped. -->
+        <button type="button" class="notepad-tool" onmousedown="event.preventDefault()" onclick="notepadToggleBullet_()" title="Bullet list" aria-label="Bullet list">
+          <svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          Bullet
+        </button>
+      </div>
+      <textarea class="notepad-area" id="notepadText" placeholder="Type your notes here…" spellcheck="true" oninput="onNotepadInput_()"></textarea>
+      <div class="notepad-meta">
+        <span class="notepad-status" id="notepadStatus">Saved</span>
+        <span id="notepadCount">0 characters</span>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <div class="left">
+        <button class="btn danger" onclick="clearNotepad_()">Clear</button>
+      </div>
+      <div class="right">
+        <button class="btn primary" onclick="closeNotepad_()">Done</button>
       </div>
     </div>
   </div>
@@ -4439,6 +4507,15 @@
     }
     if(overlayGuardOpen_){
       overlayGuardOpen_ = false;
+      if(notepadIsOpen_()){
+        // Notepad is always the topmost popup when it is open. Save + close.
+        const hadOwnGuard = notepadOwnsGuard_;
+        closeNotepad_(true);
+        // If it was opened on top of another popup, that popup still needs
+        // its own Back entry — put one back so it isn't left unguarded.
+        if(!hadOwnGuard) pushGuard_('overlay');
+        return;
+      }
       if(document.getElementById('overlay').classList.contains('open')) closeModal(true);
       else if(document.getElementById('profileOverlay').classList.contains('open')) closeProfileMenu(true);
       else if(document.getElementById('previewOverlay').classList.contains('open')) closePreviewOverlay_(true);
@@ -4603,6 +4680,207 @@
   function closeDraftReport_(){
     document.getElementById('draftReportOverlay').style.display = 'none';
   }
+
+
+  // ---- Notepad -------------------------------------------------------------
+  // One shared note for the whole app. The storage key deliberately has NO
+  // API_URL / currentSheet in it (unlike the draft report, outbox, etc.), so
+  // the text is identical on every branch and nothing that happens on branch
+  // switch / Home / sync ever touches it. Only clearNotepad_() removes it.
+  const NOTEPAD_STORAGE_KEY = 'aa_notepad_v1';
+  let notepadMemory_ = '';      // fallback if localStorage is blocked/full
+  let notepadSaveTimer_ = null;
+  let notepadDirty_ = false;
+  let notepadOwnsGuard_ = false; // true when the notepad pushed the history entry
+
+  function notepadIsOpen_(){
+    const o = document.getElementById('notepadOverlay');
+    return !!o && o.style.display === 'flex';
+  }
+
+  function notepadLoad_(){
+    try{
+      const v = localStorage.getItem(NOTEPAD_STORAGE_KEY);
+      return v === null ? notepadMemory_ : v;
+    }catch(e){
+      return notepadMemory_;
+    }
+  }
+
+  function notepadSetStatus_(msg, isErr){
+    const el = document.getElementById('notepadStatus');
+    if(!el) return;
+    el.textContent = msg;
+    el.classList.toggle('err', !!isErr);
+  }
+
+  function notepadUpdateCount_(){
+    const t = document.getElementById('notepadText').value;
+    const n = t.length;
+    document.getElementById('notepadCount').textContent = n + (n === 1 ? ' character' : ' characters');
+  }
+
+  function notepadSaveNow_(){
+    clearTimeout(notepadSaveTimer_);
+    notepadSaveTimer_ = null;
+    const text = document.getElementById('notepadText').value;
+    notepadMemory_ = text;
+    try{
+      localStorage.setItem(NOTEPAD_STORAGE_KEY, text);
+      notepadDirty_ = false;
+      notepadSetStatus_('Saved', false);
+    }catch(e){
+      notepadSetStatus_('Could not save on this device', true);
+    }
+  }
+
+  function onNotepadInput_(){
+    notepadDirty_ = true;
+    notepadSetStatus_('Saving…', false);
+    notepadUpdateCount_();
+    clearTimeout(notepadSaveTimer_);
+    notepadSaveTimer_ = setTimeout(notepadSaveNow_, 350);
+  }
+
+  function openNotepad_(){
+    // Show first, then fill — same order as the draft report, so the
+    // textarea has a real layout when we place the caret.
+    document.getElementById('notepadOverlay').style.display = 'flex';
+    lockBodyScroll();
+    // Phone Back button/gesture: give the notepad its own history entry
+    // (same shared 'overlay' layer the notification popup, Preview and
+    // branch menu use) so Back closes it instead of leaving the app.
+    // If another popup already owns that entry, don't push a second one.
+    notepadOwnsGuard_ = !overlayGuardOpen_;
+    pushGuard_('overlay');
+    const ta = document.getElementById('notepadText');
+    ta.value = notepadLoad_();
+    notepadDirty_ = false;
+    notepadSetStatus_('Saved', false);
+    notepadUpdateCount_();
+    try{
+      ta.focus({ preventScroll: true });
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    }catch(e){ /* focus is best-effort */ }
+  }
+
+  function closeNotepad_(fromPopstate){
+    // Only act when it is actually open — otherwise the (possibly stale)
+    // textarea contents could overwrite a newer value saved elsewhere.
+    if(!notepadIsOpen_()) return;
+    notepadSaveNow_();
+    document.getElementById('notepadOverlay').style.display = 'none';
+    unlockBodyScroll();
+    // Closed by X / Done / Esc: walk the history entry we pushed back.
+    // (fromPopstate = the phone Back press already consumed it.)
+    if(fromPopstate !== true && notepadOwnsGuard_) consumeGuard_('overlay');
+  }
+
+  function clearNotepad_(){
+    const ta = document.getElementById('notepadText');
+    if(!ta.value) return;
+    if(!confirm('Clear everything in the notepad? This cannot be undone.')) return;
+    ta.value = '';
+    notepadUpdateCount_();
+    notepadSaveNow_();
+    ta.focus();
+  }
+
+
+  // ---- Notepad bullets -------------------------------------------------------
+  // The note is plain text, so a bullet is just a "• " prefix on a line.
+  const NOTEPAD_BULLET = '\u2022 ';
+
+  // Replaces value[start,end) with `text` and selects [selStart,selEnd].
+  // Uses execCommand when available so the browser's undo (Ctrl+Z / shake)
+  // still works; falls back to setRangeText.
+  function notepadReplace_(ta, start, end, text, selStart, selEnd){
+    ta.focus();
+    ta.setSelectionRange(start, end);
+    let done = false;
+    try{ done = document.execCommand && document.execCommand('insertText', false, text); }catch(e){ done = false; }
+    if(!done || ta.value.substr(start, text.length) !== text){
+      ta.setRangeText(text, start, end, 'end');
+    }
+    ta.setSelectionRange(selStart, selEnd);
+    onNotepadInput_();
+  }
+
+  // Bullet button: add "• " to the current line (or every selected line);
+  // if they all already have one, remove them instead.
+  function notepadToggleBullet_(){
+    const ta = document.getElementById('notepadText');
+    const v = ta.value;
+    let selS = ta.selectionStart, selE = ta.selectionEnd;
+    const lineStart = v.lastIndexOf('\n', selS - 1) + 1;
+    let blockEnd = selE;
+    if(selE > selS && v.charAt(selE - 1) === '\n') blockEnd--;   // selection ended right after a line break
+    let lineEnd = v.indexOf('\n', blockEnd);
+    if(lineEnd === -1) lineEnd = v.length;
+
+    const lines = v.slice(lineStart, lineEnd).split('\n');
+    const multi = lines.length > 1;
+    // Blank lines inside a multi-line selection are left alone.
+    const targets = lines.filter(l => !multi || l.trim() !== '');
+    const allBulleted = targets.length > 0 && targets.every(l => l.indexOf(NOTEPAD_BULLET) === 0);
+
+    const out = lines.map(l => {
+      if(multi && l.trim() === '') return l;
+      if(allBulleted) return l.indexOf(NOTEPAD_BULLET) === 0 ? l.slice(NOTEPAD_BULLET.length) : l;
+      return l.indexOf(NOTEPAD_BULLET) === 0 ? l : NOTEPAD_BULLET + l;
+    }).join('\n');
+
+    const newBlockLen = out.length;
+    let newS, newE;
+    if(selS === selE){
+      // Caret only: keep it at the same spot in the line.
+      const delta = out.length - (lineEnd - lineStart);
+      newS = newE = Math.max(lineStart, selS + delta);
+    }else{
+      newS = lineStart;
+      newE = lineStart + newBlockLen;
+    }
+    notepadReplace_(ta, lineStart, lineEnd, out, newS, newE);
+  }
+
+  // Enter on a bulleted line continues the list; Enter on an empty bullet
+  // ends it. (beforeinput is used rather than keydown because soft phone
+  // keyboards do not reliably report key codes.)
+  document.getElementById('notepadText').addEventListener('beforeinput', function(e){
+    if(e.inputType !== 'insertLineBreak' && e.inputType !== 'insertParagraph') return;
+    const ta = e.target;
+    if(ta.selectionStart !== ta.selectionEnd) return;
+    const v = ta.value, pos = ta.selectionStart;
+    const lineStart = v.lastIndexOf('\n', pos - 1) + 1;
+    const before = v.slice(lineStart, pos);
+    if(before.indexOf(NOTEPAD_BULLET) !== 0) return;                // not a bullet line
+    if(before.length < NOTEPAD_BULLET.length) return;
+    e.preventDefault();
+    if(before === NOTEPAD_BULLET && v.charAt(pos) !== '' && v.charAt(pos) !== '\n'){
+      // caret sits right after the bullet but text follows: plain line break
+      notepadReplace_(ta, pos, pos, '\n', pos + 1, pos + 1);
+      return;
+    }
+    if(before === NOTEPAD_BULLET){
+      // empty bullet -> remove it and leave the list
+      notepadReplace_(ta, lineStart, pos, '', lineStart, lineStart);
+      return;
+    }
+    const ins = '\n' + NOTEPAD_BULLET;
+    // If the line is split mid-sentence, drop the spaces that would otherwise
+    // pile up right after the new bullet.
+    let skip = 0;
+    while(v.charAt(pos + skip) === ' ') skip++;
+    notepadReplace_(ta, pos, pos + skip, ins, pos + ins.length, pos + ins.length);
+  });
+
+  // Flush any pending autosave if the tab is hidden/closed mid-typing.
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'hidden' && notepadIsOpen_() && notepadDirty_) notepadSaveNow_();
+  });
+  window.addEventListener('pagehide', () => {
+    if(notepadIsOpen_() && notepadDirty_) notepadSaveNow_();
+  });
 
   function saveDraftReportProgress_(){
     try{
@@ -8946,6 +9224,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       closeRemarksCountMenu_();
       closeDraftReport_();
       closeDraftPreview_();
+      closeNotepad_();
     }
   });
 
