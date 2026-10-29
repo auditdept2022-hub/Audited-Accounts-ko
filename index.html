@@ -2561,9 +2561,13 @@
       rows.forEach(row => applyOptimisticDelete_({ row: row }));
       render();
       try{
-        await apiCallJson_('batchDeleteCustomer', { rows: rows });
+        await trackWrite_(async () => {
+          await apiCallJson_('batchDeleteCustomer', { rows: rows });
+          // Highest row first, so closing each gap doesn't move the
+          // rows still waiting to be removed.
+          rows.slice().sort((a, b) => b - a).forEach(row => applyConfirmedDelete_({ row: row }));
+        });
         rows.forEach(row=>{
-          applyConfirmedDelete_({ row: row });
           clearAllDrafts_(row);
           selectedRows.delete(row);
         });
@@ -2592,10 +2596,13 @@
     }
 
     let done = 0, failed = 0;
-    for(const row of rows){
+    // Highest row first: deleting a row moves every row below it up.
+    for(const row of rows.slice().sort((a, b) => b - a)){
       btn.textContent = 'Deleting ' + (done + failed + 1) + '/' + rows.length + '…';
       try{
-        await queueOrSend_({ id: genId_(), kind: 'delete', row: row, status: 'pending' });
+        const r = queueOrSend_({ id: genId_(), kind: 'delete', row: row, status: 'pending' });
+        const out = await r.done;
+        if(out && out.ok === false){ failed++; continue; }
         clearAllDrafts_(row);
         selectedRows.delete(row);
         done++;
@@ -2734,24 +2741,21 @@
       return;
     }
 
-    try{
-      const sent = await sendOne_(item);
-      warnSkipped_(sent);
+    // Saved to the outbox first, removed only when the server confirms.
+    const out = await sendDurably_(item, sent => warnSkipped_(sent));
+    if(out.ok){
       if(inputEl) inputEl.classList.remove('qi-unsynced');
-    }catch(err){
-      if(isConnectionError_(err)){
-        outbox.push(item);
-        saveOutbox_();
-        updateSyncUI();
-        if(inputEl) inputEl.classList.add('qi-unsynced');
-        return;
-      }
-      c[field] = prevValue;
-      saveLocalCache_(customers);
-      rowHtmlCache.delete(row);
-      if(inputEl) inputEl.value = prevValue || '';
-      toast('Could not save: ' + err.message);
+      return;
     }
+    if(out.queued){
+      if(inputEl) inputEl.classList.add('qi-unsynced');
+      return;
+    }
+    c[field] = prevValue;
+    saveLocalCache_(customers);
+    rowHtmlCache.delete(row);
+    if(inputEl) inputEl.value = prevValue || '';
+    toast('Could not save: ' + out.err.message);
   }
 
   async function setMark_(row, color){
@@ -2868,6 +2872,12 @@
   // values as last known when queued, for conflict detection),
   // status:'pending'|'conflict'|'error', error }
   let outbox = [];
+  // ---- Durable sending state (see sendDurably_) ----
+  const inflightIds_ = new Set();   // ids of saves that are waiting/running right now
+  let writeEpoch_ = 0;              // bumps every time a save finishes
+  let reloadAfterWrites_ = false;   // a list reload was postponed until saves finish
+  let writeChain_ = Promise.resolve();
+  const WRITE_TIMEOUT_MS = 45000;
 
   // ---- Manual offline mode -------------------------------------------
   // A person-controlled switch (header toggle, next to the Online/Offline
@@ -4970,7 +4980,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     // as "needs your attention" on the bell — otherwise a fully-read
     // notif list would hide the badge even while changes are still
     // waiting to sync.
-    const unread = notifUnreadCount_() + (typeof outbox !== 'undefined' ? outbox.length : 0);
+    const unread = notifUnreadCount_() + pendingOutbox_().length;
     if(unread > 0){
       badge.style.display = 'flex';
       badge.textContent = unread > 99 ? '99+' : String(unread);
@@ -4985,7 +4995,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   // change waiting to sync — "3 pending" on its own doesn't say who,
   // so this turns that count into an actual, checkable list.
   function notifPendingSyncHtml_(){
-    const pending = (typeof outbox !== 'undefined') ? outbox.length : 0;
+    const pending = pendingOutbox_().length;
     if(!pending) return '';
     return `<div class="notif-item notif-item-sync" onclick="event.stopPropagation(); openPendingSyncDetail_();">` +
         `<div class="notif-dot2" style="background:var(--gold);"></div>` +
@@ -5012,7 +5022,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     // items errored, the single line shown for them is the error line.
     const byKind = { create: [], update: [], delete: [] };
     const seen = { create: new Map(), update: new Map(), delete: new Map() };
-    outbox.forEach(item => {
+    pendingOutbox_().forEach(item => {
       const local = customers.find(c => c.row === item.row);
       const name = (local && local.customer) || (item.fields && item.fields.customer) || (item.snapshot && item.snapshot.customer) || '(unnamed customer)';
       const kind = byKind[item.kind] ? item.kind : 'update';
@@ -5044,7 +5054,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   // button, rather than the usual import matched/unmatched view.
   function openPendingSyncDetail_(){
     hideNotifPanelForDetail_();
-    const pending = outbox.length;
+    const pending = pendingOutbox_().length;
     document.getElementById('notifDetailTitle').textContent = 'Waiting to sync';
     document.getElementById('notifDetailMeta').textContent = pending
       ? (pending + ' change' + (pending > 1 ? 's' : '') + ' queued')
@@ -5786,7 +5796,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       netToggle.setAttribute('aria-checked', online ? 'true' : 'false');
     }
     document.getElementById('netLabel').textContent = online ? 'Online' : 'Offline';
-    const pending = outbox.length;
+    const pending = pendingOutbox_().length;
     const wrap = document.getElementById('pendingWrap');
     wrap.style.display = pending ? 'inline' : 'none';
     document.getElementById('pendingCount').textContent = pending;
@@ -5920,8 +5930,29 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   }
 
   function applyConfirmedDelete_(item){
-    customers = customers.filter(x => x.row !== item.row);
+    const delRow = item.row;
+    customers = customers.filter(x => x.row !== delRow);
+    if(typeof delRow === 'number' && delRow > 0){
+      // The sheet just closed that gap: every row below it moved up by
+      // one. Without this, the next edit/delete on a row below would hit
+      // the NEXT customer down (saved to the wrong person, or the wrong
+      // person deleted) until the list was reloaded.
+      customers.forEach(c => { if(typeof c.row === 'number' && c.row > delRow) c.row -= 1; });
+      // Queued changes for the customer that no longer exists are moot;
+      // queued changes for rows below shift up with them.
+      outbox = outbox.filter(o => o === item || o.row !== delRow);
+      outbox.forEach(o => { if(o !== item && typeof o.row === 'number' && o.row > delRow) o.row -= 1; });
+      saveOutbox_();
+    }
     saveLocalCache_(customers);
+  }
+
+  // Same row shift, for the sync pass's copy of the server list.
+  function shiftServerRowsAfterDelete_(map, delRow){
+    Object.keys(map).map(Number).filter(k => k >= delRow).sort((a, b) => a - b).forEach(k => {
+      if(k === delRow){ delete map[k]; }
+      else { map[k - 1] = map[k]; delete map[k]; }
+    });
   }
 
   // Undoes an optimistic change after the background send comes back with
@@ -6021,45 +6052,143 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   //                          toast explains what went wrong (the modal is
   //                          already closed by then, same as any other
   //                          async failure the app already surfaces this way)
+  // ---- Durable sending ----------------------------------------------------
+  // FIX (saves lost / "saved" shown too early / deleted rows coming back):
+  //  1. Every live save is first written into the outbox (localStorage),
+  //     THEN sent. It is only removed from the outbox once the server
+  //     confirms. If the phone sleeps, the tab closes or the signal drops
+  //     mid-request, the change is still on the device and syncs later
+  //     (the opId makes a repeat harmless).
+  //  2. Saves run ONE AT A TIME, in the order they were made. Deleting a
+  //     sheet row shifts every row below it up by one, so two saves racing
+  //     each other could hit the wrong customer.
+  //  3. loadData() will not swap in a server list while a save is still
+  //     running (or finished while that list was on its way), because that
+  //     old list would wipe the change from the screen (e.g. a deleted row
+  //     popping back).
+  function sleep_(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+  function pendingOutbox_(){
+    try{ return outbox.filter(o => !inflightIds_.has(o.id)); }catch(e){ return []; }
+  }
+
+  function removeFromOutbox_(item){
+    outbox = outbox.filter(o => o !== item);
+    saveOutbox_();
+  }
+
+  function afterWritesSettled_(){
+    if(inflightIds_.size || !reloadAfterWrites_) return;
+    if(isLoading){ setTimeout(afterWritesSettled_, 300); return; }
+    reloadAfterWrites_ = false;
+    loadData();
+  }
+
+  // Runs fn after every earlier save has finished (and never while a
+  // background "sync offline changes" pass is running).
+  function runExclusive_(fn){
+    const run = writeChain_.then(async () => {
+      while(isSyncing) await sleep_(150);
+      return fn();
+    });
+    writeChain_ = run.catch(() => {});
+    return run;
+  }
+
+  // For a write that isn't an outbox item (e.g. the bulk delete): keeps
+  // loadData() from overwriting the screen while it is running.
+  function trackWrite_(fn){
+    const token = 'w' + genId_();
+    inflightIds_.add(token);
+    return runExclusive_(fn).finally(() => {
+      inflightIds_.delete(token);
+      writeEpoch_++;
+      afterWritesSettled_();
+    });
+  }
+
+  // Resolves to { ok:true, result } | { ok:false, queued:true, err } (no
+  // connection - stays in the outbox) | { ok:false, queued:false, err }
+  // (server said no - removed from the outbox).
+  function sendDurably_(item, onConfirmed){
+    item._sheet = currentSheet;
+    if(!outbox.includes(item)) outbox.push(item);
+    saveOutbox_();
+    inflightIds_.add(item.id);
+    updateSyncUI();
+    return runExclusive_(async () => {
+      if(!outbox.includes(item)) return { ok:true, dropped:true }; // e.g. its customer was deleted meanwhile
+      if(item._sheet && item._sheet !== currentSheet) return { ok:false, queued:true, err:new Error('Branch changed') }; // stays queued for that branch
+      let timer;
+      try{
+        const result = await Promise.race([
+          sendOne_(item),
+          new Promise((_, rej) => { timer = setTimeout(() => rej(new TypeError('Request timed out')), WRITE_TIMEOUT_MS); })
+        ]);
+        removeFromOutbox_(item);
+        if(onConfirmed) onConfirmed(result); // runs BEFORE the next save starts, so row numbers are already corrected
+        return { ok:true, result };
+      }catch(err){
+        if(isConnectionError_(err)) return { ok:false, queued:true, err };
+        removeFromOutbox_(item);
+        return { ok:false, queued:false, err };
+      }finally{
+        clearTimeout(timer);
+      }
+    }).finally(() => {
+      inflightIds_.delete(item.id);
+      writeEpoch_++;
+      updateSyncUI();
+      afterWritesSettled_();
+    });
+  }
+
+  // Returns { queued:true } right away only when offline. Otherwise
+  // { queued:false, done } where `done` is a promise (it never rejects)
+  // that settles with { ok:true } | { queued:true } | { ok:false, error }
+  // once the server has really answered - use it to show an honest
+  // "saved" message.
   function queueOrSend_(item){
+    if(item.kind === 'delete' && !item.snapshot){
+      // So a replayed delete can tell if its row number now points at a
+      // different customer (rows shift up after every delete).
+      const target = customers.find(x => x.row === item.row);
+      if(target) item.snapshot = { customer: target.customer, engineNo: target.engineNo };
+    }
     if(item.kind === 'create') applyOptimisticCreate_(item);
     else if(item.kind === 'update') applyOptimisticUpdate_(item);
     else if(item.kind === 'delete') applyOptimisticDelete_(item);
     render();
 
-    if(!isOnline_()){
+    // Offline, or editing a customer that was created offline and has no
+    // real row yet: keep it in the outbox for the sync pass.
+    if(!isOnline_() || (item.kind !== 'create' && isTempRow(item.row))){
       outbox.push(item);
       saveOutbox_();
       updateSyncUI();
-      return { queued: true };
+      return { queued: true, done: Promise.resolve({ queued: true }) };
     }
 
-    sendOne_(item).then(result => {
+    const done = sendDurably_(item, result => {
       warnSkipped_(result);
-      // Patch the one record we just wrote instead of re-fetching the
-      // whole list — see the note above applyConfirmedCreate_.
-      if(item.kind === 'create') applyConfirmedCreate_(item, result);
+      if(item.kind === 'create'){
+        customers = customers.filter(x => x.row !== item.tempRow);
+        applyConfirmedCreate_(item, result);
+      }
       else if(item.kind === 'update') applyConfirmedUpdate_(item);
       else if(item.kind === 'delete') applyConfirmedDelete_(item);
       render();
-    }).catch(err => {
-      if(isConnectionError_(err)){
-        // Couldn't actually reach the server — the optimistic row stays
-        // on screen, now backed by the offline outbox like any other
-        // queued change, instead of being lost.
-        outbox.push(item);
-        saveOutbox_();
-        updateSyncUI();
-        return;
-      }
-      // A real application error (e.g. a stale row). Undo the optimistic
-      // change and tell the user — retrying would just fail the same way.
+    }).then(out => {
+      if(out.ok) return { ok: true };
+      if(out.queued) return { queued: true };
+      // A real answer from the server saying no: undo and say so.
       rollbackOptimistic_(item);
       render();
-      toast('Could not save: ' + err.message);
+      toast('Could not save: ' + out.err.message);
+      return { ok: false, error: out.err };
     });
 
-    return { queued: false };
+    return { queued: false, done };
   }
 
   // Sends one item for real, right now (used both for the "try live
@@ -6119,6 +6248,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   // of silently overwriting or dropping either side.
   async function syncOutbox(){
     if(isSyncing) return;
+    if(inflightIds_.size) return; // a live save is still running — it finishes (or falls back into the outbox) first
     if(!outbox.length) return;
     if(!isOnline_()) { updateSyncUI(); return; }
     if(!currentSheet){
@@ -6161,7 +6291,9 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     let hitConnectionError = false;
     let connErrMsg = '';
 
-    for(const item of outbox){
+    const startItems = outbox.slice(); // saves made while this pass runs are added back at the end
+    for(const item of startItems){
+      if(!outbox.includes(item)) continue; // removed meanwhile (discarded, or its customer was deleted)
       // A connection problem means nothing further can be sent this
       // pass — leave everything from here on exactly as queued and try
       // again later. This does NOT apply to per-item application errors
@@ -6260,7 +6392,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
           // Deletion is unambiguous — nothing to merge — always safe to
           // apply locally without a reload.
           applyConfirmedDelete_(item);
-          delete serverByRow[item.row];
+          shiftServerRowsAfterDelete_(serverByRow, item.row);
         }
         syncedAny = true;
       }catch(err){
@@ -6283,7 +6415,12 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       }
     }
 
-    outbox = remaining;
+    // Keep anything still queued, drop anything removed during the pass,
+    // and add back anything saved while the pass was running (the old
+    // `outbox = remaining` silently threw those away).
+    const keepRemaining = remaining.filter(i => outbox.includes(i));
+    const addedDuring = outbox.filter(o => !startItems.includes(o));
+    outbox = keepRemaining.concat(addedDuring);
     saveOutbox_();
     isSyncing = false;
     updateSyncUI();
@@ -6544,6 +6681,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     }
     if(isLoading) return; // avoid piling up duplicate in-flight requests
     isLoading = true;
+    let staleFetch = false; // true when a save was running while this list was fetched
 
     // Paint instantly from whatever we last saw for this API_URL, if the
     // page hasn't already got rows in memory (e.g. first load in a new
@@ -6572,11 +6710,17 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       // (and any CDN in front of the page, e.g. GitHub Pages) can never
       // serve back a stale cached response for this request — including
       // an old failed/404 response from before a deployment was fixed.
+      const epochAtStart = writeEpoch_;
       const res = await fetch(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + '&_=' + Date.now(), { cache: 'no-store' });
       const data = await parseJsonResponse_(res);
       if(data.error) throw new Error(data.error);
       checkVersionSync_(data.backendVersion);
       const fresh = data.customers || [];
+      // If a save is running, or one finished while this list was on its
+      // way, this list may not include it yet. Applying it would wipe the
+      // change from the screen (a deleted row popping back, a typed value
+      // reverting). Throw it away and load again once saving is done.
+      staleFetch = !!(inflightIds_.size || writeEpoch_ !== epochAtStart);
 
       // Only actually swap in and re-render when the sheet has genuinely
       // changed since our last successful fetch. On a quiet sheet this
@@ -6585,15 +6729,19 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       // overlaid on it — exactly as it was, instead of re-rendering and
       // re-overlaying every few minutes for no reason.
       const freshHash = listHash_(fresh);
-      if(freshHash !== lastListHash){
+      if(!staleFetch && freshHash !== lastListHash){
         lastListHash = freshHash;
         customers = fresh;
         reapplyOutbox_(); // keep still-unsynced offline edits visible on top of the fresh server data
         saveLocalCache_(customers);
         render();
       }
-      migrateLocalHidden_();
-      document.getElementById('connStatus').textContent = 'synced ' + new Date().toLocaleTimeString();
+      if(staleFetch){
+        document.getElementById('connStatus').textContent = 'saving your changes…';
+      } else {
+        migrateLocalHidden_();
+        document.getElementById('connStatus').textContent = 'synced ' + new Date().toLocaleTimeString();
+      }
       updateSyncUI();
     }catch(err){
       // If we already painted cached data, leave it on screen — a failed
@@ -6610,6 +6758,10 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       addNotification_('Dashboard error: could not load data — ' + err.message, true);
     }finally{
       isLoading = false;
+      if(staleFetch){
+        if(inflightIds_.size) reloadAfterWrites_ = true;
+        else setTimeout(() => loadData(), 400);
+      }
     }
   }
 
@@ -8324,10 +8476,18 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     };
     setFieldSyncStatus_('saving', 'Saving…');
     try{
-      const result = await queueOrSend_(item);
-      if(activeRow !== row) return; // modal moved on to something else while this was in flight
+      const result = queueOrSend_(item);
       if(result && result.queued){
-        setFieldSyncStatus_('queued', 'Offline — saved on this device');
+        if(activeRow === row) setFieldSyncStatus_('queued', 'Offline — saved on this device');
+        return;
+      }
+      // Only say "saved" once the server has really answered.
+      const outcome = await result.done;
+      if(activeRow !== row) return; // modal moved on to something else while this was in flight
+      if(outcome && outcome.queued){
+        setFieldSyncStatus_('queued', 'No connection — saved on this device, will sync');
+      } else if(outcome && outcome.ok === false){
+        setFieldSyncStatus_('error', 'NOT saved — ' + ((outcome.error && outcome.error.message) || 'server error'));
       } else {
         setFieldSyncStatus_('saved', 'All changes saved');
       }
@@ -8670,15 +8830,24 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     btn.textContent = 'Deleting…';
 
     try{
-      const item = { id: genId_(), kind: 'delete', row: activeRow, status: 'pending' };
-      const result = await queueOrSend_(item);
-      toast(result && result.queued ? 'No connection — will delete once back online.' : 'Customer deleted.');
-      clearAllDrafts_(activeRow);
+      const delRow = activeRow;
+      const item = { id: genId_(), kind: 'delete', row: delRow, status: 'pending' };
+      const result = queueOrSend_(item);
+      clearAllDrafts_(delRow);
       // The row is gone (or about to be) — a pending field edit has
       // nowhere left to save to, so drop it rather than let closeModal()
       // flush it into a write against a deleted row.
       cancelPendingFieldAutoSaves_();
       closeModal();
+      if(result && result.queued){
+        toast('No connection — will delete once back online.');
+      } else {
+        // Only say "deleted" once the server really did it.
+        const outcome = await result.done;
+        if(outcome && outcome.queued) toast('No connection — will delete once back online.');
+        else if(outcome && outcome.ok) toast('Customer deleted.');
+        // a server "no" already showed its own error and brought the row back
+      }
     }catch(err){
       toast('Could not delete: ' + err.message);
     }finally{
