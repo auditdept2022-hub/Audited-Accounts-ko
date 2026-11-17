@@ -1,19 +1,15 @@
-// App-shell service worker.
-// Caches only the static shell (HTML/CSS/JS/icons) so the app installs
-// and opens even on a flaky connection. Live ledger data still requires
-// a network connection to your Apps Script Web App — this file does not
-// cache or touch that data.
-
-// Bumped v1 -> v2 alongside the fetch-strategy change below, so the
-// activate handler's cache cleanup actually runs once for everyone
-// currently on v1 (a same-named cache never looked "old", so it never
-// got purged).
-// Bumped v2 -> v3 alongside the {cache:'no-store'} change below — same
-// reasoning: forces this file to be seen as "new" so install/activate
-// actually run for anyone whose browser was still holding an old
-// worker in memory, instead of silently continuing to run stale logic
-// until its own 24h update check happens to land.
-const CACHE_NAME = 'audited-accounts-shell-v3';
+// App-shell service worker (v4).
+// Caches only the static shell. Live ledger data is never cached here.
+//
+// v3 -> v4 fixes for the "white screen" problem:
+//  1. Page load now has a timeout. If the network is slow or hanging
+//     (weak signal), it opens the saved copy after NAV_TIMEOUT_MS
+//     instead of leaving a blank screen.
+//  2. If the exact page URL is not in the cache, it falls back to the
+//     saved index.html instead of returning nothing (nothing = white screen).
+//  3. Install no longer fails completely if one icon file is missing.
+const CACHE_NAME = 'audited-accounts-shell-v4';
+const NAV_TIMEOUT_MS = 4000;
 const SHELL_FILES = [
   './',
   './index.html',
@@ -24,14 +20,6 @@ const SHELL_FILES = [
   './apple-touch-icon.png'
 ];
 
-// Requests that must always try the network FIRST — the page shell
-// itself. The old strategy (cache-first, refresh cache in the
-// background for next time) meant every edit to index.html took an
-// extra reload — sometimes two — to actually show up, because the very
-// page you just loaded was always served from whatever was cached
-// BEFORE this visit, not what was just fetched. Network-first fixes
-// that: online, you always get the latest index.html; offline, it
-// falls back to whatever's cached so the app still opens.
 function isShellNavigation_(req) {
   if (req.mode === 'navigate') return true;
   const path = new URL(req.url).pathname;
@@ -41,7 +29,9 @@ function isShellNavigation_(req) {
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(SHELL_FILES))
+      .then((cache) => Promise.all(
+        SHELL_FILES.map((f) => cache.add(f).catch(() => { /* skip missing file */ }))
+      ))
       .then(() => self.skipWaiting())
   );
 });
@@ -49,64 +39,62 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((names) =>
-      Promise.all(
-        names
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
-      )
+      Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
     ).then(() => self.clients.claim())
   );
 });
 
+// Best saved copy of the page: exact URL first, then index.html, then './'.
+function savedShell_(req) {
+  return caches.match(req)
+    .then((r) => r || caches.match('./index.html'))
+    .then((r) => r || caches.match('./'));
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-
-  // Only handle same-origin GET requests for the shell. Everything else
-  // (Apps Script API calls, Google Fonts, the SheetJS CDN script, etc.)
-  // goes straight to the network untouched.
-  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) {
-    return;
-  }
+  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
 
   if (isShellNavigation_(req)) {
-    // Network-first: try the live file, cache a copy of it for offline
-    // use, and only fall back to whatever's cached if the network
-    // request itself fails (actually offline / unreachable).
-    // {cache:'no-store'} bypasses the BROWSER's own HTTP cache, not just
-    // this service worker's cache. Without it, "network-first" here can
-    // still resolve to a stale response if the host sends any kind of
-    // Cache-Control/Expires header on index.html — the browser is free
-    // to answer fetch() out of its HTTP cache before this code ever
-    // sees a request go out, which looks identical to the SW "not
-    // working" from the outside. This forces an actual round-trip.
-    event.respondWith(
-      fetch(req, { cache: 'no-store' })
-        .then((res) => {
-          if (res && res.status === 200) {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
-          }
-          return res;
-        })
-        .catch(() => caches.match(req))
-    );
+    event.respondWith((async () => {
+      const network = fetch(req, { cache: 'no-store' }).then((res) => {
+        if (res && res.status === 200 && !res.redirected) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((c) => c.put('./index.html', clone)).catch(() => {});
+        }
+        return res;
+      });
+      // Race the network against a timer. Network wins if fast enough
+      // (always the latest file); otherwise show the saved copy.
+      const timer = new Promise((resolve) => setTimeout(() => resolve(null), NAV_TIMEOUT_MS));
+      try {
+        const first = await Promise.race([network, timer]);
+        if (first) return first;
+        const saved = await savedShell_(req);
+        if (saved) return saved;
+        return await network; // nothing saved yet: keep waiting for network
+      } catch (err) {
+        const saved = await savedShell_(req);
+        if (saved) return saved;
+        return new Response(
+          '<meta name="viewport" content="width=device-width,initial-scale=1"><body style="font:16px sans-serif;padding:24px">No connection and no saved copy yet. Please connect to the internet and reopen the app.</body>',
+          { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+        );
+      }
+    })());
     return;
   }
 
-  // Everything else in the shell (icons, manifest) changes rarely, so
-  // cache-first (with a background refresh for next time) is still
-  // fine here — it just shouldn't apply to the HTML shell above.
+  // Icons/manifest: saved copy first, refresh in background.
   event.respondWith(
     caches.match(req).then((cached) => {
-      const network = fetch(req)
-        .then((res) => {
-          if (res && res.status === 200) {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
-          }
-          return res;
-        })
-        .catch(() => cached);
+      const network = fetch(req).then((res) => {
+        if (res && res.status === 200) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((c) => c.put(req, clone)).catch(() => {});
+        }
+        return res;
+      }).catch(() => cached || Response.error());
       return cached || network;
     })
   );
