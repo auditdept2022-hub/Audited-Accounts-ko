@@ -1609,7 +1609,7 @@
       <div class="sub-row sub-row-sync">
         <span class="hdr-status" id="connStatus">Not connected yet.</span>
         <button class="hdr-sync-btn" onclick="playHdrIconFx_(this); loadData()" title="Refresh"><svg class="svgicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></button>
-        <span id="pendingWrap" style="display:none;">· <span class="count" id="pendingCount">0</span> pending <button onclick="syncOutbox()">Sync now</button></span>
+        <span id="pendingWrap" style="display:none;">· <span class="count" id="pendingCount">0</span> pending <button onclick="syncOutbox(true)">Sync now</button></span>
       </div>
     </div>
     <svg class="topband-wave-top" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true">
@@ -1853,7 +1853,7 @@
     <div class="modal-foot">
       <div class="right">
         <button class="btn" onclick="closeNotifDetail_()">Close</button>
-        <button class="btn primary" id="notifDetailSyncBtn" style="display:none;" onclick="closeNotifDetail_(); syncOutbox();">Sync now</button>
+        <button class="btn primary" id="notifDetailSyncBtn" style="display:none;" onclick="closeNotifDetail_(); syncOutbox(true);">Sync now</button>
       </div>
     </div>
   </div>
@@ -6861,7 +6861,41 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   // another device, changed that row while this one was offline) the
   // item is marked 'conflict' and left for the user to resolve instead
   // of silently overwriting or dropping either side.
-  async function syncOutbox(){
+  // SYNC-BUTTON FIX: "Sync now" used to do NOTHING (no message) when it
+  // returned early — already syncing, a save still running, set to Offline.
+  // Also, if the sync code ever threw unexpectedly, isSyncing stayed true
+  // forever and every later "Sync now" was silently ignored until the app
+  // was force-stopped. This wrapper (1) tells the person why nothing
+  // happened, (2) always resets isSyncing, (3) frees a sync that has been
+  // "running" for over 2 minutes.
+  let syncStartedAt_ = 0;
+  async function syncOutbox(fromButton){
+    const tap = (fromButton === true);
+    if(isSyncing && Date.now() - syncStartedAt_ > 120000){ isSyncing = false; }
+    if(tap){
+      if(!outbox.length){ toast('Nothing to sync.'); return; }
+      if(isSyncing){ toast('Already syncing — please wait a moment…'); return; }
+      if(inflightIds_.size){ toast('A save is still running — try again in a few seconds.'); return; }
+      if(!isOnline_()){ toast(manualOffline ? 'The app is set to Offline. Switch it to Online first.' : 'No internet connection right now.'); return; }
+      if(!currentSheet){ toast('Open a branch first.'); return; }
+    }
+    try{
+      await syncOutboxCore_();
+    }catch(err){
+      console.warn('syncOutbox failed unexpectedly', err);
+      isSyncing = false;
+      try{ updateSyncUI(); }catch(e){}
+      if(tap) toast('Sync stopped unexpectedly. Tap Sync now again.');
+      return;
+    }
+    if(tap && outbox.length){
+      if(outbox.some(o => o.status === 'error')) toast('Some changes could not be saved — see the warning at the top.');
+      else if(outbox.some(o => o.status === 'conflict')) toast('A change needs your decision — see the warning at the top.');
+      else toast('Not synced yet — please check your connection and try again.');
+    }
+  }
+
+  async function syncOutboxCore_(){
     if(isSyncing) return;
     if(inflightIds_.size) return; // a live save is still running — it finishes (or falls back into the outbox) first
     if(!outbox.length) return;
@@ -6875,6 +6909,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       return;
     }
     isSyncing = true;
+    syncStartedAt_ = Date.now();
     document.getElementById('connStatus').textContent = 'Syncing offline changes…';
 
     // Fresh server truth to diff conflict snapshots against.
