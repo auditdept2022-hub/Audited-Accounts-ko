@@ -3075,8 +3075,49 @@
     try{ localStorage.setItem(outboxKey_(), JSON.stringify(outbox)); }catch(e){ /* storage full/unavailable — nothing else to do */ }
   }
 
+  // HOME-LEFTOVER FIX: older versions could save a change under the "no
+  // branch" (null) key when the person pressed Home/Back while it was still
+  // queued. At Home nothing can send it, so it sat there forever ("1 change
+  // waiting to sync", Sync now does nothing). Each queued change remembers
+  // its own branch (_sheet), so move it back into that branch's own queue;
+  // it then syncs the next time that branch is opened.
+  function rescueNullOutbox_(){
+    let moved = 0;
+    try{
+      const prefix = 'aa_outbox_v1:' + API_URL + ':';
+      const nullKey = prefix + 'null';
+      const raw = localStorage.getItem(nullKey);
+      if(!raw) return 0;
+      const items = JSON.parse(raw);
+      if(!Array.isArray(items) || !items.length){ localStorage.removeItem(nullKey); return 0; }
+      const keep = [];
+      const byBranch = {};
+      items.forEach(it => {
+        if(it && it._sheet){ (byBranch[it._sheet] = byBranch[it._sheet] || []).push(it); }
+        else if(it){ keep.push(it); }
+      });
+      Object.keys(byBranch).forEach(name => {
+        const k = prefix + name;
+        let existing = [];
+        try{ existing = JSON.parse(localStorage.getItem(k) || '[]'); if(!Array.isArray(existing)) existing = []; }catch(e){ existing = []; }
+        byBranch[name].forEach(it => {
+          if(!existing.some(e => e && e.id === it.id)){ existing.push(it); }
+          moved++;
+        });
+        localStorage.setItem(k, JSON.stringify(existing));
+      });
+      if(keep.length) localStorage.setItem(nullKey, JSON.stringify(keep));
+      else localStorage.removeItem(nullKey);
+    }catch(e){ /* best-effort */ }
+    return moved;
+  }
+
   function loadOutbox_(){
     try{
+      if(!currentSheet){
+        const moved = rescueNullOutbox_();
+        if(moved){ try{ toast(moved + ' change(s) moved back to their branch — open that branch to sync them.'); }catch(e){} }
+      }
       const raw = localStorage.getItem(outboxKey_());
       outbox = raw ? JSON.parse(raw) : [];
       if(!Array.isArray(outbox)) outbox = [];
@@ -3084,6 +3125,16 @@
       // (waiting for a decision). Nothing shows or resolves that state any
       // more, so such an item stayed in the queue forever and "Sync now"
       // did nothing. Turn it into a visible, fixable item (Retry / Discard).
+      if(!currentSheet){
+        // Anything still here has no branch attached, so it can never sync.
+        // Make it a visible warning with Discard instead of a silent "pending".
+        outbox.forEach(o => {
+          if(o && o.status !== 'error'){
+            o.status = 'error';
+            o.error = 'This change has no branch saved, so it cannot be sent. Tap Discard mine, then redo the edit inside its branch.';
+          }
+        });
+      }
       outbox.forEach(o => {
         if(o && o.status === 'conflict'){
           o.status = 'error';
