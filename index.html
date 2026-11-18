@@ -4392,6 +4392,27 @@
     }
   }
 
+  // TIMEOUT FIX: a fetch() with no time limit can hang forever on a weak
+  // signal. loadData() sets isLoading=true before its fetch, so one hung
+  // request froze every later refresh until the app was force-stopped.
+  // This gives up after `ms` and throws a TypeError, which the existing
+  // code already treats as a normal "connection problem".
+  function fetchT_(url, opts, ms){
+    ms = ms || 30000;
+    if(typeof AbortController === 'undefined') return fetch(url, opts);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => { try{ ctrl.abort(); }catch(e){} }, ms);
+    const o = Object.assign({}, opts || {}, { signal: ctrl.signal });
+    return fetch(url, o).then(
+      (res) => { clearTimeout(timer); return res; },
+      (err) => {
+        clearTimeout(timer);
+        if(err && err.name === 'AbortError') throw new TypeError('Request timed out');
+        throw err;
+      }
+    );
+  }
+
   // Apps Script Web Apps issue a 302 redirect on every request. Browsers
   // downgrade a redirected POST to GET and drop its body (per the fetch
   // spec), so a POST silently turns into a no-op "list" call with no error.
@@ -4399,7 +4420,7 @@
   // write action is sent as a GET with the payload JSON-encoded in the URL.
   function apiCall(action, payload){
     const url = API_URL + '?action=' + encodeURIComponent(action) + '&sheet=' + encodeURIComponent(currentSheet) + '&payload=' + encodeURIComponent(JSON.stringify(payload)) + '&_=' + Date.now();
-    return fetch(url, { cache: 'no-store' });
+    return fetchT_(url, { cache: 'no-store' }, 60000);
   }
 
   // Turns a fetch Response into parsed JSON, but reads it as text first
@@ -4845,7 +4866,7 @@
         const baseRev = notepadGetRev_() || 0;
         let data;
         try{
-          const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'saveNotepad', text: text, baseRev: baseRev }) });
+          const res = await fetchT_(API_URL, { method: 'POST', body: JSON.stringify({ action: 'saveNotepad', text: text, baseRev: baseRev }) }, 30000);
           data = await parseJsonResponse_(res);
         }catch(e){
           if(notepadIsOpen_()) notepadSetStatus_('Saved on this device \u00b7 will sync when online', false);
@@ -4890,7 +4911,7 @@
     if(notepadIsPending_()){ notepadPush_(); return; }
     let data;
     try{
-      const res = await fetch(API_URL + '?action=getNotepad&_=' + Date.now(), { cache: 'no-store' });
+      const res = await fetchT_(API_URL + '?action=getNotepad&_=' + Date.now(), { cache: 'no-store' }, 30000);
       data = await parseJsonResponse_(res);
     }catch(e){ return; }   // offline: keep showing the local copy
     if(!data || data.error || typeof data.text !== 'string') return;
@@ -6860,7 +6881,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     let serverList = null;
     let listErr = null;
     try{
-      const res = await fetch(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + '&_=' + Date.now(), { cache: 'no-store' });
+      const res = await fetchT_(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + '&_=' + Date.now(), { cache: 'no-store' }, 30000);
       const data = await parseJsonResponse_(res);
       if(data.error) throw new Error(data.error);
       serverList = data.customers || [];
@@ -7313,7 +7334,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       // serve back a stale cached response for this request — including
       // an old failed/404 response from before a deployment was fixed.
       const epochAtStart = writeEpoch_;
-      const res = await fetch(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + '&_=' + Date.now(), { cache: 'no-store' });
+      const res = await fetchT_(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + '&_=' + Date.now(), { cache: 'no-store' }, 30000);
       const data = await parseJsonResponse_(res);
       if(data.error) throw new Error(data.error);
       checkVersionSync_(data.backendVersion);
