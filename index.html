@@ -4515,8 +4515,17 @@
   // null — a quick way back to a blank home screen without touching the
   // actual sheet data on the backend or forgetting the saved API URL.
   function resetToHome_(){
+    const leftPending_ = outbox.length;
     currentSheet = null;
     saveCurrentSheet_();
+    // HOME/BACK FIX: the outbox in memory still belonged to the branch we
+    // just left, so the app showed "1 pending" that Sync now could never
+    // send (no branch open) and the branch menu warned about changes "on
+    // null". Reload it for "no branch" (empty); the real items stay safe in
+    // that branch's own saved outbox and come back when it is reopened.
+    loadOutbox_();
+    updateSyncUI();
+    if(leftPending_) toast(leftPending_ + ' change(s) are still waiting to sync — open that branch again to send them.');
     customers = [];
     lastListHash = null;
     document.getElementById('emptyState').style.display = 'none';
@@ -4631,8 +4640,12 @@
     if(branchGuardOpen_){
       branchGuardOpen_ = false;
       if(currentSheet){
+        const leftPending_ = outbox.length;
         currentSheet = null;
         saveCurrentSheet_();
+        loadOutbox_();      // HOME/BACK FIX: see resetToHome_
+        updateSyncUI();
+        if(leftPending_) toast(leftPending_ + ' change(s) are still waiting to sync — open that branch again to send them.');
         customers = [];
         lastListHash = null;
         document.getElementById('emptyState').style.display = 'none';
@@ -6084,7 +6097,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   async function switchProfile_(name){
     closeProfileMenu();
     if(name === currentSheet) return;
-    if(outbox.length){
+    if(outbox.length && currentSheet){
       if(!confirm('You have ' + outbox.length + ' unsynced change(s) on "' + currentSheet + '". Switching branches now leaves them queued until you come back and sync. Continue?')){
         openProfileMenu();
         return;
