@@ -3079,6 +3079,17 @@
     try{
       const raw = localStorage.getItem(outboxKey_());
       outbox = raw ? JSON.parse(raw) : [];
+      if(!Array.isArray(outbox)) outbox = [];
+      // STUCK-ITEM FIX: older versions could park a change as 'conflict'
+      // (waiting for a decision). Nothing shows or resolves that state any
+      // more, so such an item stayed in the queue forever and "Sync now"
+      // did nothing. Turn it into a visible, fixable item (Retry / Discard).
+      outbox.forEach(o => {
+        if(o && o.status === 'conflict'){
+          o.status = 'error';
+          o.error = o.error || 'This change was paused earlier. Tap Retry to send it, or Discard mine.';
+        }
+      });
     }catch(e){ outbox = []; }
   }
 
@@ -6962,12 +6973,29 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       // again later. This does NOT apply to per-item application errors
       // below, which only affect that one item.
       if(hitConnectionError){ remaining.push(item); continue; }
-      if(item.status === 'conflict'){ remaining.push(item); continue; } // awaiting user decision
+      if(item.status === 'conflict'){
+        // STUCK-ITEM FIX: make it visible (red warning with Retry/Discard)
+        // instead of silently sitting in the queue forever.
+        item.status = 'error';
+        item.error = item.error || 'This change was paused earlier. Tap Retry to send it, or Discard mine.';
+        remaining.push(item);
+        continue;
+      }
 
       // Waiting on this item's own offline "create" to sync first
       // (should always have happened earlier in this same pass, since
       // the create was queued first — this is just a safety net).
-      if(item.kind !== 'create' && isTempRow(item.row)){ remaining.push(item); continue; }
+      if(item.kind !== 'create' && isTempRow(item.row)){
+        // STUCK-ITEM FIX: if the "create" it depends on is gone, it can
+        // never sync — flag it so it can be discarded.
+        const hasCreate = outbox.some(o => o !== item && o.kind === 'create' && o.tempRow === item.row);
+        if(!hasCreate && item.status !== 'error'){
+          item.status = 'error';
+          item.error = 'The new record this change belongs to is no longer in the queue. Discard it.';
+        }
+        remaining.push(item);
+        continue;
+      }
 
       try{
         if(item.kind !== 'create' && item.snapshot){
