@@ -1,0 +1,518 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Create the Android app from your web files
+        run: |
+          set -e
+          mkdir -p android/app/src/main/java/com/auditedaccounts/app android/app/src/main/res/values android/app/src/main/res/xml android/app/src/main/assets
+          cat > android/settings.gradle <<'AA_EOF'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "AuditedAccounts"
+          include ':app'
+          AA_EOF
+          cat > android/build.gradle <<'AA_EOF'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+          }
+          AA_EOF
+          cat > android/gradle.properties <<'AA_EOF'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          AA_EOF
+          cat > android/app/build.gradle <<'AA_EOF'
+          plugins { id 'com.android.application' }
+
+          android {
+              namespace 'com.auditedaccounts.app'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "com.auditedaccounts.app"
+                  minSdk 29
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              lint {
+                  checkReleaseBuilds false
+                  abortOnError false
+              }
+
+              signingConfigs {
+                  main {
+                      storeFile file('release.keystore')
+                      storeType 'PKCS12'
+                      storePassword 'auditedaccounts'
+                      keyAlias 'audited'
+                      keyPassword 'auditedaccounts'
+                  }
+              }
+
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.main
+                      minifyEnabled false
+                  }
+                  debug {
+                      signingConfig signingConfigs.main
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.webkit:webkit:1.11.0'
+              implementation 'androidx.core:core:1.13.1'
+          }
+          AA_EOF
+          cat > android/app/src/main/AndroidManifest.xml <<'AA_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher"
+                  android:label="Audited Accounts"
+                  android:theme="@style/AppTheme"
+                  android:usesCleartextTraffic="false">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"
+                      android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+                  <provider
+                      android:name="androidx.core.content.FileProvider"
+                      android:authorities="${applicationId}.fileprovider"
+                      android:exported="false"
+                      android:grantUriPermissions="true">
+                      <meta-data
+                          android:name="android.support.FILE_PROVIDER_PATHS"
+                          android:resource="@xml/file_paths" />
+                  </provider>
+              </application>
+          </manifest>
+          AA_EOF
+          cat > android/app/src/main/res/values/styles.xml <<'AA_EOF'
+          <resources>
+              <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+                  <item name="android:statusBarColor">#1F3FCF</item>
+                  <item name="android:navigationBarColor">#F4F6FC</item>
+                  <item name="android:windowBackground">#F4F6FC</item>
+              </style>
+          </resources>
+          AA_EOF
+          cat > android/app/src/main/res/xml/file_paths.xml <<'AA_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <paths>
+              <cache-path name="shared" path="shared/" />
+          </paths>
+          AA_EOF
+          cat > android/app/src/main/java/com/auditedaccounts/app/MainActivity.java <<'AA_EOF'
+          package com.auditedaccounts.app;
+
+          import android.app.Activity;
+          import android.content.ActivityNotFoundException;
+          import android.content.ContentValues;
+          import android.content.Intent;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.os.Message;
+          import android.print.PrintAttributes;
+          import android.print.PrintManager;
+          import android.provider.MediaStore;
+          import android.util.Base64;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.ValueCallback;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebResourceResponse;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.widget.Button;
+          import android.widget.FrameLayout;
+          import android.widget.LinearLayout;
+          import android.widget.Toast;
+
+          import androidx.core.content.FileProvider;
+          import androidx.webkit.WebViewAssetLoader;
+
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.OutputStream;
+
+          public class MainActivity extends Activity {
+
+              private static final String START_URL = "https://appassets.androidplatform.net/assets/index.html";
+              private static final String HOST = "appassets.androidplatform.net";
+              private static final int REQ_FILE = 1001;
+
+              private WebView webView;
+              private FrameLayout root;
+              private ValueCallback<Uri[]> fileCallback;
+              private View overlay;
+              private WebView childView;
+
+              // Makes downloads (blob/data links) and "share file" work inside the app.
+              private static final String PATCH_JS = """
+                  (function(){
+                    if (window.__aaPatched) return; window.__aaPatched = true;
+                    function toB64(blob){
+                      return new Promise(function(res, rej){
+                        var r = new FileReader();
+                        r.onload = function(){ res(String(r.result).split(',')[1] || ''); };
+                        r.onerror = rej;
+                        r.readAsDataURL(blob);
+                      });
+                    }
+                    function saveAnchor(a){
+                      var name = a.download || 'file';
+                      var p = fetch(a.href);               // start right now, before the link is revoked
+                      p.then(function(r){ return r.blob(); })
+                       .then(function(b){ return toB64(b).then(function(s){ AndroidBridge.saveFile(name, b.type || 'application/octet-stream', s); }); })
+                       .catch(function(e){ try{ AndroidBridge.toast('Could not save file'); }catch(x){} });
+                    }
+                    var origClick = HTMLAnchorElement.prototype.click;
+                    HTMLAnchorElement.prototype.click = function(){
+                      if (this.download && this.href && (this.href.indexOf('blob:') === 0 || this.href.indexOf('data:') === 0)) { saveAnchor(this); return; }
+                      return origClick.apply(this, arguments);
+                    };
+                    document.addEventListener('click', function(e){
+                      var a = e.target && e.target.closest ? e.target.closest('a[download]') : null;
+                      if (a && a.href && (a.href.indexOf('blob:') === 0 || a.href.indexOf('data:') === 0)) { e.preventDefault(); saveAnchor(a); }
+                    }, true);
+                    navigator.canShare = function(d){ return !!(d && ((d.files && d.files.length) || d.text || d.url || d.title)); };
+                    navigator.share = function(d){
+                      d = d || {};
+                      if (d.files && d.files.length) {
+                        var f = d.files[0];
+                        return toB64(f).then(function(s){ AndroidBridge.shareFile(f.name || 'file', f.type || 'application/octet-stream', s); });
+                      }
+                      AndroidBridge.shareText(String(d.title || ''), String((d.text || '') + (d.url ? ' ' + d.url : '')));
+                      return Promise.resolve();
+                    };
+                  })();
+                  """;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  root = new FrameLayout(this);
+                  setContentView(root);
+
+                  final WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
+                          .setDomain(HOST)
+                          .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                          .build();
+
+                  webView = new WebView(this);
+                  root.addView(webView, new FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  WebSettings s = webView.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setDatabaseEnabled(true);
+                  s.setAllowFileAccess(false);
+                  s.setAllowContentAccess(false);
+                  s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+                  s.setSupportMultipleWindows(true);
+                  s.setJavaScriptCanOpenWindowsAutomatically(true);
+                  s.setCacheMode(WebSettings.LOAD_DEFAULT);
+
+                  webView.addJavascriptInterface(new Bridge(), "AndroidBridge");
+
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                          return loader.shouldInterceptRequest(request.getUrl());
+                      }
+
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                          Uri u = request.getUrl();
+                          if (HOST.equals(u.getHost())) return false;
+                          openExternal(u);
+                          return true;
+                      }
+
+                      @Override
+                      public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                          view.evaluateJavascript(PATCH_JS, null);
+                      }
+
+                      @Override
+                      public void onPageFinished(WebView view, String url) {
+                          view.evaluateJavascript(PATCH_JS, null);
+                      }
+                  });
+
+                  webView.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                          if (fileCallback != null) fileCallback.onReceiveValue(null);
+                          fileCallback = callback;
+                          try {
+                              startActivityForResult(params.createIntent(), REQ_FILE);
+                          } catch (ActivityNotFoundException e) {
+                              fileCallback = null;
+                              toast("No file picker found on this phone");
+                              return false;
+                          }
+                          return true;
+                      }
+
+                      @Override
+                      public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
+                          showChildWindow(resultMsg);
+                          return true;
+                      }
+                  });
+
+                  webView.setDownloadListener((url, ua, cd, mime, len) -> {
+                      if (url.startsWith("http")) openExternal(Uri.parse(url));
+                  });
+
+                  webView.loadUrl(START_URL);
+              }
+
+              // ---- window.open(): used for Print preview, and for outside links ----
+              private void showChildWindow(Message resultMsg) {
+                  closeChild();
+                  childView = new WebView(this);
+                  WebSettings cs = childView.getSettings();
+                  cs.setJavaScriptEnabled(true);
+                  cs.setDomStorageEnabled(true);
+                  childView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                          Uri u = request.getUrl();
+                          String sc = u.getScheme();
+                          if ("http".equals(sc) || "https".equals(sc) || "mailto".equals(sc) || "tel".equals(sc)) {
+                              openExternal(u);
+                              closeChild();
+                              return true;
+                          }
+                          return false;
+                      }
+                  });
+                  childView.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public void onCloseWindow(WebView window) { closeChild(); }
+                  });
+
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.setBackgroundColor(0xFFFFFFFF);
+                  box.setClickable(true);
+
+                  LinearLayout bar = new LinearLayout(this);
+                  bar.setOrientation(LinearLayout.HORIZONTAL);
+                  bar.setGravity(Gravity.END);
+                  bar.setBackgroundColor(0xFFF4F6FC);
+
+                  Button printBtn = new Button(this);
+                  printBtn.setText("Print / Save as PDF");
+                  printBtn.setOnClickListener(v -> {
+                      if (childView == null) return;
+                      PrintManager pm = (PrintManager) getSystemService(PRINT_SERVICE);
+                      pm.print("Audited Accounts", childView.createPrintDocumentAdapter("Audited Accounts"),
+                              new PrintAttributes.Builder().build());
+                  });
+                  Button closeBtn = new Button(this);
+                  closeBtn.setText("Close");
+                  closeBtn.setOnClickListener(v -> closeChild());
+                  bar.addView(printBtn);
+                  bar.addView(closeBtn);
+
+                  box.addView(bar, new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                  box.addView(childView, new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+                  overlay = box;
+                  root.addView(overlay, new FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  WebView.WebViewTransport t = (WebView.WebViewTransport) resultMsg.obj;
+                  t.setWebView(childView);
+                  resultMsg.sendToTarget();
+              }
+
+              private void closeChild() {
+                  if (overlay != null) { root.removeView(overlay); overlay = null; }
+                  if (childView != null) { childView.destroy(); childView = null; }
+              }
+
+              private void openExternal(Uri u) {
+                  try {
+                      startActivity(new Intent(Intent.ACTION_VIEW, u));
+                  } catch (ActivityNotFoundException e) {
+                      toast("Cannot open this link");
+                  }
+              }
+
+              private void toast(String m) {
+                  runOnUiThread(() -> Toast.makeText(this, m, Toast.LENGTH_LONG).show());
+              }
+
+              @Override
+              protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+                  if (requestCode == REQ_FILE) {
+                      if (fileCallback != null) {
+                          fileCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+                          fileCallback = null;
+                      }
+                      return;
+                  }
+                  super.onActivityResult(requestCode, resultCode, data);
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (overlay != null) { closeChild(); return; }
+                  if (webView.canGoBack()) { webView.goBack(); return; }
+                  super.onBackPressed();
+              }
+
+              @Override
+              protected void onPause() {
+                  super.onPause();
+                  webView.onPause();
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  webView.onResume();
+              }
+
+              // ---- Functions the web page can call ----
+              private class Bridge {
+                  @JavascriptInterface
+                  public void toast(String m) { MainActivity.this.toast(m); }
+
+                  @JavascriptInterface
+                  public void saveFile(String name, String mime, String b64) {
+                      new Thread(() -> {
+                          try {
+                              byte[] bytes = Base64.decode(b64, Base64.DEFAULT);
+                              ContentValues v = new ContentValues();
+                              v.put(MediaStore.Downloads.DISPLAY_NAME, safeName(name));
+                              v.put(MediaStore.Downloads.MIME_TYPE, mime);
+                              v.put(MediaStore.Downloads.RELATIVE_PATH, "Download/");
+                              Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                              if (uri == null) throw new Exception("no uri");
+                              try (OutputStream os = getContentResolver().openOutputStream(uri)) {
+                                  os.write(bytes);
+                              }
+                              MainActivity.this.toast("Saved to Downloads: " + safeName(name));
+                          } catch (Exception e) {
+                              MainActivity.this.toast("Could not save file");
+                          }
+                      }).start();
+                  }
+
+                  @JavascriptInterface
+                  public void shareFile(String name, String mime, String b64) {
+                      new Thread(() -> {
+                          try {
+                              byte[] bytes = Base64.decode(b64, Base64.DEFAULT);
+                              File dir = new File(getCacheDir(), "shared");
+                              //noinspection ResultOfMethodCallIgnored
+                              dir.mkdirs();
+                              File f = new File(dir, safeName(name));
+                              try (FileOutputStream os = new FileOutputStream(f)) { os.write(bytes); }
+                              Uri uri = FileProvider.getUriForFile(MainActivity.this,
+                                      getPackageName() + ".fileprovider", f);
+                              Intent send = new Intent(Intent.ACTION_SEND);
+                              send.setType(mime);
+                              send.putExtra(Intent.EXTRA_STREAM, uri);
+                              send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                              runOnUiThread(() -> startActivity(Intent.createChooser(send, "Share")));
+                          } catch (Exception e) {
+                              MainActivity.this.toast("Could not share file");
+                          }
+                      }).start();
+                  }
+
+                  @JavascriptInterface
+                  public void shareText(String title, String text) {
+                      runOnUiThread(() -> {
+                          Intent send = new Intent(Intent.ACTION_SEND);
+                          send.setType("text/plain");
+                          if (!title.isEmpty()) send.putExtra(Intent.EXTRA_SUBJECT, title);
+                          send.putExtra(Intent.EXTRA_TEXT, text);
+                          startActivity(Intent.createChooser(send, "Share"));
+                      });
+                  }
+              }
+
+              private static String safeName(String n) {
+                  if (n == null || n.trim().isEmpty()) return "file";
+                  return n.replaceAll("[\\\\/:*?\"<>|]", "_");
+              }
+          }
+          AA_EOF
+          echo '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' | base64 -d > android/app/release.keystore
+          A=android/app/src/main
+          cp index.html sw.js manifest.json $A/assets/
+          cp ./*.png $A/assets/
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p $A/res/mipmap-$d
+            cp icon-512.png $A/res/mipmap-$d/ic_launcher.png
+          done
+
+      - name: Build APK
+        run: gradle -p android assembleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Audited-Accounts-APK
+          path: android/app/build/outputs/apk/release/*.apk
