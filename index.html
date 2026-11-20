@@ -7341,6 +7341,37 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   });
   setInterval(() => { if(isOnline_() && outbox.length) syncOutbox(); }, 20000);
 
+  // ---- LIVE REFRESH -------------------------------------------------------
+  // Every 15 seconds the open branch quietly checks the sheet, so a change
+  // made on the PC (or by someone else) shows up on the phone, and the other
+  // way round, without pressing anything. loadData() only redraws the screen
+  // when the data really changed, so on a quiet sheet nothing moves.
+  // It waits (and tries again next time) whenever redrawing could get in the
+  // way: app in the background, offline, a save or sync running, changes still
+  // waiting to be sent, any popup open (so typing is never disturbed), or
+  // customers ticked for a bulk action.
+  const LIVE_REFRESH_MS = 15000;
+  function liveRefreshOk_(){
+    if(!API_URL || !currentSheet) return false;
+    if(document.visibilityState !== 'visible') return false;
+    if(!isOnline_() || isLoading || isSyncing) return false;
+    if(inflightIds_.size) return false;
+    if(outbox.some(o => o && o.status !== 'error')) return false; // let the sync send them first
+    if(document.querySelector('.overlay.open')) return false;
+    if(selectedRows.size) return false;
+    return true;
+  }
+  function liveRefreshTick_(){
+    try{ if(liveRefreshOk_()) loadData(true); }catch(e){ /* try again next time */ }
+  }
+  setInterval(liveRefreshTick_, LIVE_REFRESH_MS);
+  // Coming back to the app / getting the signal back: check right away
+  // instead of waiting for the next 15-second tick.
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible') setTimeout(liveRefreshTick_, 300);
+  });
+  window.addEventListener('online', () => setTimeout(liveRefreshTick_, 1500));
+
   // Tapping "⚠ Needs attention" directly on a record — a faster path
   // to the same Retry/Discard choice the top conflict banner offers,
   // for anyone who didn't notice the banner (or scrolled past it). A
@@ -7416,7 +7447,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     }
   }
 
-  async function loadData(){
+  async function loadData(quiet){
     if(!API_URL){
       document.getElementById('setupPanel').style.display = 'block';
       document.getElementById('dashPanel').style.display = 'none';
@@ -7448,7 +7479,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
           'showing cached data from ' + new Date(cached.ts).toLocaleTimeString() + ' — syncing…';
       }
     }
-    if(!paintedFromCache){
+    if(!paintedFromCache && !(quiet && customers.length)){
       document.getElementById('connStatus').textContent = 'Loading…';
       if(customers.length === 0){
         document.getElementById('tableBody').innerHTML = skeletonHtml(6);
@@ -7498,14 +7529,21 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       // background refresh shouldn't yank the table out from under the
       // user. Only fall back to the hard "Connection error" messaging
       // when there was nothing to show in the first place.
-      if(paintedFromCache){
-        document.getElementById('connStatus').textContent =
-          'Sync failed — showing cached data. (' + err.message + ')';
+      if(quiet && customers.length){
+        // LIVE REFRESH: a background check failed (weak signal, offline).
+        // Keep what is on screen, say so quietly, and try again next time.
+        // No pop-up and no notification, so it does not spam the person.
+        document.getElementById('connStatus').textContent = 'Live update paused — will retry';
       } else {
-        document.getElementById('connStatus').textContent = 'Connection error.';
+        if(paintedFromCache){
+          document.getElementById('connStatus').textContent =
+            'Sync failed — showing cached data. (' + err.message + ')';
+        } else {
+          document.getElementById('connStatus').textContent = 'Connection error.';
+        }
+        toast('Could not load data: ' + err.message);
+        addNotification_('Dashboard error: could not load data — ' + err.message, true);
       }
-      toast('Could not load data: ' + err.message);
-      addNotification_('Dashboard error: could not load data — ' + err.message, true);
     }finally{
       isLoading = false;
       if(staleFetch){
