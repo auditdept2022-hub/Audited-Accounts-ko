@@ -5,6 +5,9 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -513,7 +516,18 @@ jobs:
       - name: Build APK
         run: gradle -p android assembleRelease --no-daemon
 
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/release/*.apk Audited-Accounts.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: Audited-Accounts-APK
-          path: android/app/build/outputs/apk/release/*.apk
+          path: Audited-Accounts.apk
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: Audited Accounts APK (build ${{ github.run_number }})
+          body: Download Audited-Accounts.apk below and install it on your phone.
+          files: Audited-Accounts.apk
