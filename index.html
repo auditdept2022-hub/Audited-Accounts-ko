@@ -2166,7 +2166,7 @@
   // and saved but not re-deployed via Deploy > Manage deployments >
   // pencil icon > New version — this shows a small warning banner
   // instead of silently running the dashboard against old backend code.
-  const APP_VERSION = '2026-11-23.1';
+  const APP_VERSION = '2026-11-23.2';
   let versionBannerShown_ = false;
   function checkVersionSync_(backendVersion){
     if(!backendVersion || backendVersion === APP_VERSION || versionBannerShown_) return;
@@ -7457,7 +7457,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
 
   function saveLocalCache_(list){
     try{
-      localStorage.setItem(localCacheKey_(), JSON.stringify({ customers: list, ts: Date.now() }));
+      localStorage.setItem(localCacheKey_(), JSON.stringify({ customers: list, ts: Date.now(), ver: (lastListVersionSheet_ === currentSheet ? lastListVersion_ : '') }));
     }catch(e){
       // storage full/unavailable (private browsing, quota, etc.) — fine,
       // this is purely a speed optimization, not a source of truth
@@ -7503,6 +7503,9 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       if(cached && cached.customers.length){
         customers = cached.customers;
         paintedFromCache = true;
+        // Remember which server version this saved copy matched, so the check below can
+        // answer "unchanged" and skip the full download when nothing changed since.
+        if(cached.ver && !lastListVersion_){ lastListVersion_ = cached.ver; lastListVersionSheet_ = currentSheet; }
         render();
         document.getElementById('connStatus').textContent =
           'showing cached data from ' + new Date(cached.ts).toLocaleTimeString() + ' — syncing…';
@@ -7521,18 +7524,20 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       // serve back a stale cached response for this request — including
       // an old failed/404 response from before a deployment was fixed.
       const epochAtStart = writeEpoch_;
+      const t0_ = performance.now();
       const useSince = !!(lastListVersion_ && lastListVersionSheet_ === currentSheet && customers.length > 0);
       const res = await fetchRetry_(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + (useSince ? '&since=' + encodeURIComponent(lastListVersion_) : '') + '&_=' + Date.now(), { cache: 'no-store' }, 40000);
       const data = await parseJsonResponse_(res);
       if(data.error) throw new Error(data.error);
       checkVersionSync_(data.backendVersion);
+      const netSec_ = ((performance.now() - t0_) / 1000).toFixed(1) + 's';
       if(data.unchanged){
         // Nothing changed on the server for this branch: keep the screen as it is.
         staleFetch = !!(inflightIds_.size || writeEpoch_ !== epochAtStart);
         if(!staleFetch && lastServerFetch_ && lastServerFetch_.sheet === currentSheet){
           lastServerFetch_.ts = Date.now(); lastServerFetch_.epoch = epochAtStart;
         }
-        document.getElementById('connStatus').textContent = staleFetch ? 'saving your changes…' : 'synced ' + new Date().toLocaleTimeString();
+        document.getElementById('connStatus').textContent = staleFetch ? 'saving your changes…' : 'synced ' + new Date().toLocaleTimeString() + ' · no changes (' + netSec_ + ')';
         updateSyncUI();
         return;
       }
@@ -7563,7 +7568,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
         document.getElementById('connStatus').textContent = 'saving your changes…';
       } else {
         migrateLocalHidden_();
-        document.getElementById('connStatus').textContent = 'synced ' + new Date().toLocaleTimeString();
+        document.getElementById('connStatus').textContent = 'synced ' + new Date().toLocaleTimeString() + ' · server ' + netSec_;
       }
       updateSyncUI();
     }catch(err){
