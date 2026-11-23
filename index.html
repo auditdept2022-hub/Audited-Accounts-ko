@@ -2166,7 +2166,7 @@
   // and saved but not re-deployed via Deploy > Manage deployments >
   // pencil icon > New version — this shows a small warning banner
   // instead of silently running the dashboard against old backend code.
-  const APP_VERSION = '2026-10-29.1';
+  const APP_VERSION = '2026-11-23.1';
   let versionBannerShown_ = false;
   function checkVersionSync_(backendVersion){
     if(!backendVersion || backendVersion === APP_VERSION || versionBannerShown_) return;
@@ -6995,10 +6995,16 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       if(lf && lf.sheet === currentSheet && lf.epoch === writeEpoch_ && Date.now() - lf.ts < 20000){
         serverList = lf.list.map(c => Object.assign({}, c)); // fresh enough — skip one slow download
       } else {
-        const res = await fetchT_(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + '&_=' + Date.now(), { cache: 'no-store' }, 30000);
+        const useSince = !!(lf && lf.ver && lf.sheet === currentSheet && lf.epoch === writeEpoch_);
+        const res = await fetchRetry_(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + (useSince ? '&since=' + encodeURIComponent(lf.ver) : '') + '&_=' + Date.now(), { cache: 'no-store' }, 40000);
         const data = await parseJsonResponse_(res);
         if(data.error) throw new Error(data.error);
-        serverList = data.customers || [];
+        if(data.unchanged && useSince){
+          serverList = lf.list.map(c => Object.assign({}, c)); // server says nothing changed
+          lf.ts = Date.now();
+        } else {
+          serverList = data.customers || [];
+        }
       }
     }catch(e){ listErr = e; }
 
@@ -7415,6 +7421,21 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   // Clean copy of the last list fetched from the server (no offline edits laid on top),
   // so syncing offline changes right after a refresh does not download the list again.
   let lastServerFetch_ = null;
+  // DELTA LOAD: the server stamps every branch list with a version. We remember the
+  // stamp of the last full list we got and send it back as ?since=. If nothing changed
+  // on the server, it answers with a tiny {unchanged:true} instead of the whole list.
+  let lastListVersion_ = '';
+  let lastListVersionSheet_ = '';
+  // One quiet retry when a request times out or the connection drops (weak signal,
+  // Apps Script cold start). Parse/server errors are NOT retried.
+  async function fetchRetry_(url, opts, ms){
+    try{ return await fetchT_(url, opts, ms); }
+    catch(err){
+      if(!(err instanceof TypeError)) throw err;
+      await new Promise(r => setTimeout(r, 1500));
+      return await fetchT_(url, opts, Math.round(ms * 1.5));
+    }
+  }
 
   // ---- Local list cache -----------------------------------------------
   // Every network round trip to an Apps Script /exec URL costs at least
@@ -7500,10 +7521,21 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       // serve back a stale cached response for this request — including
       // an old failed/404 response from before a deployment was fixed.
       const epochAtStart = writeEpoch_;
-      const res = await fetchT_(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + '&_=' + Date.now(), { cache: 'no-store' }, 30000);
+      const useSince = !!(lastListVersion_ && lastListVersionSheet_ === currentSheet && customers.length > 0);
+      const res = await fetchRetry_(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + (useSince ? '&since=' + encodeURIComponent(lastListVersion_) : '') + '&_=' + Date.now(), { cache: 'no-store' }, 40000);
       const data = await parseJsonResponse_(res);
       if(data.error) throw new Error(data.error);
       checkVersionSync_(data.backendVersion);
+      if(data.unchanged){
+        // Nothing changed on the server for this branch: keep the screen as it is.
+        staleFetch = !!(inflightIds_.size || writeEpoch_ !== epochAtStart);
+        if(!staleFetch && lastServerFetch_ && lastServerFetch_.sheet === currentSheet){
+          lastServerFetch_.ts = Date.now(); lastServerFetch_.epoch = epochAtStart;
+        }
+        document.getElementById('connStatus').textContent = staleFetch ? 'saving your changes…' : 'synced ' + new Date().toLocaleTimeString();
+        updateSyncUI();
+        return;
+      }
       const fresh = data.customers || [];
       const freshClean_ = fresh.map(c => Object.assign({}, c)); // untouched copy for the sync check
       // If a save is running, or one finished while this list was on its
@@ -7518,7 +7550,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       // read and otherwise leaves the screen — and any outbox items
       // overlaid on it — exactly as it was, instead of re-rendering and
       // re-overlaying every few minutes for no reason.
-      if(!staleFetch){ lastServerFetch_ = { list: freshClean_, ts: Date.now(), epoch: epochAtStart, sheet: currentSheet }; }
+      if(!staleFetch){ lastServerFetch_ = { list: freshClean_, ts: Date.now(), epoch: epochAtStart, sheet: currentSheet, ver: data.version || '' }; if(data.version){ lastListVersion_ = data.version; lastListVersionSheet_ = currentSheet; } }
       const freshHash = listHash_(fresh);
       if(!staleFetch && freshHash !== lastListHash){
         lastListHash = freshHash;
