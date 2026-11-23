@@ -2166,7 +2166,7 @@
   // and saved but not re-deployed via Deploy > Manage deployments >
   // pencil icon > New version — this shows a small warning banner
   // instead of silently running the dashboard against old backend code.
-  const APP_VERSION = '2026-11-23.2';
+  const APP_VERSION = '2026-11-23.4';
   let versionBannerShown_ = false;
   function checkVersionSync_(backendVersion){
     if(!backendVersion || backendVersion === APP_VERSION || versionBannerShown_) return;
@@ -3033,7 +3033,7 @@
   let writeEpoch_ = 0;              // bumps every time a save finishes
   let reloadAfterWrites_ = false;   // a list reload was postponed until saves finish
   let writeChain_ = Promise.resolve();
-  const WRITE_TIMEOUT_MS = 45000;
+  const WRITE_TIMEOUT_MS = 310000;   // was 45000: a busy sheet often needs longer, and giving up early made saves show "pending" and retry
 
   // ---- Manual offline mode -------------------------------------------
   // A person-controlled switch (header toggle, next to the Online/Offline
@@ -4295,6 +4295,12 @@
   async function runBatched_(items, batchAction, batchKey, toBatchItem, singleAction, toSinglePayload, overallTotal, doneSoFar, getName, deferWidth){
     if(!items.length) return { succeeded: 0, failed: 0, done: doneSoFar, failedNames: [] };
 
+    // SPEED: updates sorted by sheet row, so each chunk holds rows that sit close
+    // together (the backend then reads/writes only those rows).
+    if(batchKey === 'updates'){
+      items = items.slice().sort((a, b) => ((toBatchItem(a).row) || 0) - ((toBatchItem(b).row) || 0));
+    }
+
     // PERFORMANCE: this used to be 3. Every batch write for one import
     // targets the SAME branch, and the backend serializes all writes to a
     // branch through withBranchLock_ (see Code.gs) — so firing chunks
@@ -4342,8 +4348,25 @@
         const payload = {};
         payload[batchKey] = chunk.map(toBatchItem);
         if(deferWidth) payload.deferWidth = true;
-        const res = await apiCall(batchAction, payload);
-        const data = await parseJsonResponse_(res);
+        // The same opId is reused for the retry, so if the first try actually
+        // went through on the server, the retry returns that result instead of
+        // writing the chunk twice (no duplicate new accounts).
+        payload.opId = genId_();
+        async function attempt_(){
+          const res = await apiCall(batchAction, payload);
+          return await parseJsonResponse_(res);
+        }
+        let data;
+        try{ data = await attempt_(); }
+        catch(firstErr){
+          if(!isConnectionError_(firstErr)) throw firstErr;
+          await sleep_(2500);
+          data = await attempt_();
+        }
+        if(data && data.error && data.retryable){
+          await sleep_(2500);
+          data = await attempt_();
+        }
         if(data.error) {
           console.warn(`${batchAction} chunk of ${chunk.length} returned an error, retrying one row at a time:`, data.error);
           await fallbackChunk(chunk);
@@ -4482,7 +4505,7 @@
   // write action is sent as a GET with the payload JSON-encoded in the URL.
   function apiCall(action, payload){
     const url = API_URL + '?action=' + encodeURIComponent(action) + '&sheet=' + encodeURIComponent(currentSheet) + '&payload=' + encodeURIComponent(JSON.stringify(payload)) + '&_=' + Date.now();
-    return fetchT_(url, { cache: 'no-store' }, 60000);
+    return fetchT_(url, { cache: 'no-store' }, 300000);   // 5 min; Apps Script stops a run at 6 min
   }
 
   // Turns a fetch Response into parsed JSON, but reads it as text first
@@ -6946,7 +6969,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   let syncStartedAt_ = 0;
   async function syncOutbox(fromButton){
     const tap = (fromButton === true);
-    if(isSyncing && Date.now() - syncStartedAt_ > 120000){ isSyncing = false; }
+    if(isSyncing && Date.now() - syncStartedAt_ > 420000){ isSyncing = false; }
     if(tap){
       if(!outbox.length){ toast('Nothing to sync.'); return; }
       if(isSyncing){ toast('Already syncing — please wait a moment…'); return; }
@@ -6996,7 +7019,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
         serverList = lf.list.map(c => Object.assign({}, c)); // fresh enough — skip one slow download
       } else {
         const useSince = !!(lf && lf.ver && lf.sheet === currentSheet && lf.epoch === writeEpoch_);
-        const res = await fetchRetry_(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + (useSince ? '&since=' + encodeURIComponent(lf.ver) : '') + '&_=' + Date.now(), { cache: 'no-store' }, 40000);
+        const res = await fetchRetry_(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + (useSince ? '&since=' + encodeURIComponent(lf.ver) : '') + '&_=' + Date.now(), { cache: 'no-store' }, 120000);
         const data = await parseJsonResponse_(res);
         if(data.error) throw new Error(data.error);
         if(data.unchanged && useSince){
@@ -7556,7 +7579,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       const epochAtStart = writeEpoch_;
       const t0_ = performance.now();
       const useSince = !!(lastListVersion_ && lastListVersionSheet_ === requestSheet && customers.length > 0);
-      const res = await fetchRetry_(requestApiUrl + '?action=list&sheet=' + encodeURIComponent(requestSheet) + (useSince ? '&since=' + encodeURIComponent(lastListVersion_) : '') + '&_=' + Date.now(), { cache: 'no-store' }, 40000);
+      const res = await fetchRetry_(requestApiUrl + '?action=list&sheet=' + encodeURIComponent(requestSheet) + (useSince ? '&since=' + encodeURIComponent(lastListVersion_) : '') + '&_=' + Date.now(), { cache: 'no-store' }, 120000);
       const data = await parseJsonResponse_(res);
 
       // A switch may have happened during fetch() or while reading the body.
