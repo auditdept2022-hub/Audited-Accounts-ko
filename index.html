@@ -7418,6 +7418,19 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
   }
 
   let isLoading = false;
+  // Track which branch owns the active list request. A single global loading
+  // flag used to make a branch switch silently skip its new request whenever
+  // the previous branch was still loading. The request sequence also prevents
+  // a late response from an old branch (or old API URL) overwriting the branch
+  // the user has since selected.
+  let isLoadingSheet_ = '';
+  let listLoadRequestSeq_ = 0;
+
+  function isCurrentListLoad_(requestId, sheetName, apiUrl){
+    return requestId === listLoadRequestSeq_ &&
+      currentSheet === sheetName && API_URL === apiUrl;
+  }
+
   // Clean copy of the last list fetched from the server (no offline edits laid on top),
   // so syncing offline changes right after a refresh does not download the list again.
   let lastServerFetch_ = null;
@@ -7478,19 +7491,38 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
 
   async function loadData(quiet){
     if(!API_URL){
+      // Invalidate any request that may still be completing for the previous
+      // connection so it cannot repaint the dashboard after disconnecting.
+      listLoadRequestSeq_++;
+      isLoading = false;
+      isLoadingSheet_ = '';
       document.getElementById('setupPanel').style.display = 'block';
       document.getElementById('dashPanel').style.display = 'none';
       return;
     }
-    if(!currentSheet){
+
+    const requestSheet = currentSheet;
+    const requestApiUrl = API_URL;
+    if(!requestSheet){
+      // Returning Home also invalidates an in-flight branch request. Its late
+      // response must not put the previous branch back on the Home screen.
+      listLoadRequestSeq_++;
+      isLoading = false;
+      isLoadingSheet_ = '';
       document.getElementById('connStatus').textContent = '';
       document.getElementById('tableBody').innerHTML = '';
       document.getElementById('emptyState').style.display = 'block';
       document.querySelector('#emptyState div:last-child').textContent = 'No branch profiles yet. Open the ☰ menu (top left) to create your first one.';
       return;
     }
-    if(isLoading) return; // avoid piling up duplicate in-flight requests
+
+    // Avoid duplicate requests for the SAME branch, but allow a new request
+    // immediately when the user switches branches. Older requests are allowed
+    // to finish naturally and are ignored by their request sequence check.
+    if(isLoading && isLoadingSheet_ === requestSheet) return;
+    const requestId = ++listLoadRequestSeq_;
     isLoading = true;
+    isLoadingSheet_ = requestSheet;
     let staleFetch = false; // true when a save was running while this list was fetched
 
     // Paint instantly from whatever we last saw for this API_URL, if the
@@ -7505,7 +7537,7 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
         paintedFromCache = true;
         // Remember which server version this saved copy matched, so the check below can
         // answer "unchanged" and skip the full download when nothing changed since.
-        if(cached.ver && !lastListVersion_){ lastListVersion_ = cached.ver; lastListVersionSheet_ = currentSheet; }
+        if(cached.ver && !lastListVersion_){ lastListVersion_ = cached.ver; lastListVersionSheet_ = requestSheet; }
         render();
         document.getElementById('connStatus').textContent =
           'showing cached data from ' + new Date(cached.ts).toLocaleTimeString() + ' — syncing…';
@@ -7519,22 +7551,24 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
     }
 
     try{
-      // cache: 'no-store' plus a timestamp query param means the browser
-      // (and any CDN in front of the page, e.g. GitHub Pages) can never
-      // serve back a stale cached response for this request — including
-      // an old failed/404 response from before a deployment was fixed.
+      // Keep the request URL and branch fixed for the entire round trip. The
+      // selected branch can change while Apps Script is responding.
       const epochAtStart = writeEpoch_;
       const t0_ = performance.now();
-      const useSince = !!(lastListVersion_ && lastListVersionSheet_ === currentSheet && customers.length > 0);
-      const res = await fetchRetry_(API_URL + '?action=list&sheet=' + encodeURIComponent(currentSheet) + (useSince ? '&since=' + encodeURIComponent(lastListVersion_) : '') + '&_=' + Date.now(), { cache: 'no-store' }, 40000);
+      const useSince = !!(lastListVersion_ && lastListVersionSheet_ === requestSheet && customers.length > 0);
+      const res = await fetchRetry_(requestApiUrl + '?action=list&sheet=' + encodeURIComponent(requestSheet) + (useSince ? '&since=' + encodeURIComponent(lastListVersion_) : '') + '&_=' + Date.now(), { cache: 'no-store' }, 40000);
       const data = await parseJsonResponse_(res);
+
+      // A switch may have happened during fetch() or while reading the body.
+      // Ignore obsolete data/errors rather than applying them to another branch.
+      if(!isCurrentListLoad_(requestId, requestSheet, requestApiUrl)) return;
       if(data.error) throw new Error(data.error);
       checkVersionSync_(data.backendVersion);
       const netSec_ = ((performance.now() - t0_) / 1000).toFixed(1) + 's';
       if(data.unchanged){
         // Nothing changed on the server for this branch: keep the screen as it is.
         staleFetch = !!(inflightIds_.size || writeEpoch_ !== epochAtStart);
-        if(!staleFetch && lastServerFetch_ && lastServerFetch_.sheet === currentSheet){
+        if(!staleFetch && lastServerFetch_ && lastServerFetch_.sheet === requestSheet){
           lastServerFetch_.ts = Date.now(); lastServerFetch_.epoch = epochAtStart;
         }
         document.getElementById('connStatus').textContent = staleFetch ? 'saving your changes…' : 'synced ' + new Date().toLocaleTimeString() + ' · no changes (' + netSec_ + ')';
@@ -7555,7 +7589,10 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       // read and otherwise leaves the screen — and any outbox items
       // overlaid on it — exactly as it was, instead of re-rendering and
       // re-overlaying every few minutes for no reason.
-      if(!staleFetch){ lastServerFetch_ = { list: freshClean_, ts: Date.now(), epoch: epochAtStart, sheet: currentSheet, ver: data.version || '' }; if(data.version){ lastListVersion_ = data.version; lastListVersionSheet_ = currentSheet; } }
+      if(!staleFetch){
+        lastServerFetch_ = { list: freshClean_, ts: Date.now(), epoch: epochAtStart, sheet: requestSheet, ver: data.version || '' };
+        if(data.version){ lastListVersion_ = data.version; lastListVersionSheet_ = requestSheet; }
+      }
       const freshHash = listHash_(fresh);
       if(!staleFetch && freshHash !== lastListHash){
         lastListHash = freshHash;
@@ -7572,6 +7609,9 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
       }
       updateSyncUI();
     }catch(err){
+      // A failed request for a branch that is no longer selected is stale too;
+      // do not replace the current branch's status or show a misleading toast.
+      if(!isCurrentListLoad_(requestId, requestSheet, requestApiUrl)) return;
       // If we already painted cached data, leave it on screen — a failed
       // background refresh shouldn't yank the table out from under the
       // user. Only fall back to the hard "Connection error" messaging
@@ -7592,10 +7632,15 @@ function notifStorageKey_(){ return 'aa_notifications_v1:' + API_URL; }
         addNotification_('Dashboard error: could not load data — ' + err.message, true);
       }
     }finally{
-      isLoading = false;
-      if(staleFetch){
-        if(inflightIds_.size) reloadAfterWrites_ = true;
-        else setTimeout(() => loadData(), 400);
+      // Only the newest request owns the global loading indicator. An older
+      // branch request finishing late must not clear the newer request's flag.
+      if(requestId === listLoadRequestSeq_){
+        isLoading = false;
+        isLoadingSheet_ = '';
+        if(staleFetch){
+          if(inflightIds_.size) reloadAfterWrites_ = true;
+          else setTimeout(() => loadData(), 400);
+        }
       }
     }
   }
